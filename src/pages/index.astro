@@ -1,0 +1,28 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+import Dashboard from "../components/Dashboard";
+---
+
+<Layout title="Inventario — Distribuidora del Sur">
+  <Header />
+  <main
+    id="main"
+    class="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 sm:py-10"
+  >
+    <Dashboard client:load />
+  </main>
+  <footer class="mx-auto w-full max-w-[1320px] px-4 pb-10 pt-6 sm:px-6">
+    <div
+      class="flex flex-col gap-2 border-t border-[var(--color-line)] pt-4 text-xs text-[var(--color-ink-500)] sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p>
+        Demo local. Los datos se guardan en este navegador
+        (<code class="font-mono">localStorage</code>). No hay backend.
+      </p>
+      <p class="font-mono uppercase tracking-[0.08em]">
+        Distribuidora del Sur · 2026
+      </p>
+    </div>
+  </footer>
+</Layout>

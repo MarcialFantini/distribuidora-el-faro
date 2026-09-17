@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@import "@fontsource-variable/geist/index.css";
+@import "@fontsource-variable/geist-mono/index.css";
+
+/*
+ * Class-based dark mode for Tailwind v4.
+ * Apply the `dark` class on <html> to flip the palette.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens.
+ * One accent (amber). Status colors are reserved for stock signals.
+ * Neutrals lean warm (stone) on light, cool (zinc) on dark.
+ */
+@theme {
+  --font-sans:
+    "Geist Variable", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono:
+    "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+
+  --color-canvas: oklch(0.985 0.002 95);
+  --color-surface: oklch(1 0 0);
+  --color-surface-muted: oklch(0.97 0.002 95);
+  --color-ink-900: oklch(0.205 0.005 80);
+  --color-ink-700: oklch(0.36 0.004 80);
+  --color-ink-500: oklch(0.52 0.004 80);
+  --color-ink-300: oklch(0.72 0.005 80);
+  --color-line: oklch(0.91 0.003 80);
+
+  --color-accent: oklch(0.62 0.16 65);
+  --color-accent-soft: oklch(0.94 0.05 75);
+
+  --color-status-ok: oklch(0.55 0.12 150);
+  --color-status-warn: oklch(0.66 0.18 65);
+  --color-status-bad: oklch(0.55 0.21 28);
+  --color-status-info: oklch(0.55 0.14 240);
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/*
+ * Dark palette overrides.
+ */
+.dark {
+  --color-canvas: oklch(0.16 0.005 260);
+  --color-surface: oklch(0.21 0.005 260);
+  --color-surface-muted: oklch(0.25 0.005 260);
+  --color-ink-900: oklch(0.96 0.002 80);
+  --color-ink-700: oklch(0.78 0.003 80);
+  --color-ink-500: oklch(0.62 0.004 80);
+  --color-ink-300: oklch(0.42 0.005 80);
+  --color-line: oklch(0.32 0.005 260);
+}
+
+/* Base reset */
+html {
+  font-family: var(--font-sans);
+  background-color: var(--color-canvas);
+  color: var(--color-ink-900);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink-900);
+  min-height: 100dvh;
+}
+
+/* Focus ring, accessible everywhere */
+:focus-visible {
+  outline: 2px solid var(--color-ink-900);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Hairline table row hover — restrained */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle entry for KPI tiles, no bouncy spring */
+.kpi-tile {
+  transition: background-color 200ms ease, border-color 200ms ease;
+}

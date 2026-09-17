@@ -1,0 +1,28 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Header from "../../components/Header.astro";
+import ProductForm from "../../components/ProductForm";
+---
+
+<Layout
+  title="Editar producto — Distribuidora del Sur"
+  description="Edición de producto en el inventario de Distribuidora del Sur."
+>
+  <Header />
+  <main
+    id="main"
+    class="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 sm:py-10"
+  >
+    <!--
+      Single client-loaded island that picks up `?sku=...` itself. Astro
+      doesn't need to know the SKU at build time because the data lives
+      in the browser.
+    -->
+    <ProductForm client:only="react" mode="edit" />
+  </main>
+  <footer class="mx-auto w-full max-w-[1320px] px-4 pb-10 pt-6 sm:px-6">
+    <p class="text-xs text-[var(--color-ink-500)]">
+      Demo local. Datos almacenados en este navegador.
+    </p>
+  </footer>
+</Layout>

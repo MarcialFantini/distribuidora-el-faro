@@ -1,0 +1,56 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "Distribuidora del Sur — Inventario",
+  description = "Mini sistema de inventario para Distribuidora del Sur. Demo local, sin backend.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1a1d" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <!--
+      Theme bootstrap is intentionally inline so it runs before first paint and
+      avoids a flash of light theme on dark-mode clients.
+    -->
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem("delsur.theme");
+          var prefersDark = window.matchMedia(
+            "(prefers-color-scheme: dark)",
+          ).matches;
+          var theme = stored || (prefersDark ? "dark" : "light");
+          if (theme === "dark") document.documentElement.classList.add("dark");
+          document.documentElement.dataset.theme = theme;
+        } catch (e) {
+          /* localStorage blocked — fall back to system preference */
+        }
+      })();
+    </script>
+  </head>
+  <body class="bg-[var(--color-canvas)] text-[var(--color-ink-900)] antialiased">
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-[var(--color-ink-900)] focus:px-3 focus:py-2 focus:text-sm focus:text-[var(--color-canvas)]"
+    >
+      Saltar al contenido principal
+    </a>
+    <slot />
+  </body>
+</html>
