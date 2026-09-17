@@ -1,7 +1,14 @@
 @import "tailwindcss";
 
-@import "@fontsource-variable/geist/index.css";
-@import "@fontsource-variable/geist-mono/index.css";
+/*
+ * Distribuidora El Faro — design tokens.
+ * Identidad operativa: ocean + charcoal + ámbar alerta.
+ * Tipografía técnica (IBM Plex Sans / Mono) para una herramienta de trabajo.
+ *
+ * Fonts (IBM Plex Sans + IBM Plex Mono) se cargan vía Bunny Fonts en el <head>
+ * del Layout.astro. Bunny Fonts es GDPR-friendly, drop-in replacement de
+ * Google Fonts, no requiere dependencias nuevas en el proyecto.
+ */
 
 /*
  * Class-based dark mode for Tailwind v4.
@@ -10,53 +17,92 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Design tokens.
- * One accent (amber). Status colors are reserved for stock signals.
- * Neutrals lean warm (stone) on light, cool (zinc) on dark.
+ * Design tokens — every value aligns with the brand identity in
+ * IDENTIDADES-VISUALES.md (sección "03 — Distribuidora El Faro").
+ *
+ * Brand anchors:
+ *   ocean   #0A6B8C   headers, brand mark, primary CTA, focus
+ *   white   #FAFAFA   canvas (page background)
+ *   charcoal#2D3338   primary text
+ *   alert   #E89B3D   ámbar para alertas de bajo stock (badge)
+ *
+ * Status colors are reserved for stock signals:
+ *   status-ok   verde sobrio   stock por encima del umbral
+ *   status-warn ámbar de marca stock en o por debajo del umbral
+ *   status-bad  rojo denso     stock crítico (≤ mitad del umbral)
  */
 @theme {
   --font-sans:
-    "Geist Variable", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
+    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
   --font-mono:
-    "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
-    monospace;
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --color-canvas: oklch(0.985 0.002 95);
+  --color-ocean: oklch(0.468 0.078 222);
+  --color-ocean-soft: oklch(0.95 0.025 222);
+  --color-ocean-deep: oklch(0.38 0.085 222);
+
+  --color-canvas: oklch(0.982 0 0);
   --color-surface: oklch(1 0 0);
-  --color-surface-muted: oklch(0.97 0.002 95);
-  --color-ink-900: oklch(0.205 0.005 80);
-  --color-ink-700: oklch(0.36 0.004 80);
-  --color-ink-500: oklch(0.52 0.004 80);
-  --color-ink-300: oklch(0.72 0.005 80);
-  --color-line: oklch(0.91 0.003 80);
+  --color-surface-muted: oklch(0.972 0.002 220);
 
-  --color-accent: oklch(0.62 0.16 65);
-  --color-accent-soft: oklch(0.94 0.05 75);
+  --color-ink-900: oklch(0.275 0.011 232);
+  --color-ink-700: oklch(0.42 0.012 232);
+  --color-ink-500: oklch(0.56 0.01 232);
+  --color-ink-300: oklch(0.74 0.008 232);
+  --color-line: oklch(0.91 0.005 232);
 
-  --color-status-ok: oklch(0.55 0.12 150);
-  --color-status-warn: oklch(0.66 0.18 65);
-  --color-status-bad: oklch(0.55 0.21 28);
-  --color-status-info: oklch(0.55 0.14 240);
+  --color-alert: oklch(0.74 0.135 71);
+  --color-alert-soft: oklch(0.94 0.06 75);
 
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --color-status-ok: oklch(0.55 0.115 152);
+  --color-status-ok-soft: oklch(0.94 0.04 152);
+  --color-status-warn: oklch(0.74 0.135 71);
+  --color-status-warn-soft: oklch(0.94 0.06 75);
+  --color-status-bad: oklch(0.55 0.19 28);
+  --color-status-bad-soft: oklch(0.94 0.05 28);
+
+  /*
+   * Semantic alias: every focus border resolves to ocean.
+   * Mantiene el principio "un solo color de marca para acciones".
+   */
+  --color-focus: var(--color-ocean);
+
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
 }
 
 /*
- * Dark palette overrides.
+ * Dark palette — mismas anclas, invertidas.
+ * Ocean sigue siendo el acento; el canvas va a un charcoal profundo
+ * para evitar el negro puro y mantener profundidad.
  */
 .dark {
-  --color-canvas: oklch(0.16 0.005 260);
-  --color-surface: oklch(0.21 0.005 260);
-  --color-surface-muted: oklch(0.25 0.005 260);
-  --color-ink-900: oklch(0.96 0.002 80);
-  --color-ink-700: oklch(0.78 0.003 80);
-  --color-ink-500: oklch(0.62 0.004 80);
-  --color-ink-300: oklch(0.42 0.005 80);
-  --color-line: oklch(0.32 0.005 260);
+  --color-ocean: oklch(0.7 0.105 222);
+  --color-ocean-soft: oklch(0.32 0.05 222);
+  --color-ocean-deep: oklch(0.82 0.085 222);
+
+  --color-canvas: oklch(0.16 0.012 232);
+  --color-surface: oklch(0.21 0.012 232);
+  --color-surface-muted: oklch(0.26 0.012 232);
+
+  --color-ink-900: oklch(0.96 0.005 232);
+  --color-ink-700: oklch(0.78 0.008 232);
+  --color-ink-500: oklch(0.62 0.008 232);
+  --color-ink-300: oklch(0.42 0.008 232);
+  --color-line: oklch(0.32 0.012 232);
+
+  --color-alert: oklch(0.78 0.13 71);
+  --color-alert-soft: oklch(0.32 0.06 75);
+
+  --color-status-ok: oklch(0.72 0.13 152);
+  --color-status-ok-soft: oklch(0.32 0.05 152);
+  --color-status-warn: oklch(0.78 0.13 71);
+  --color-status-warn-soft: oklch(0.32 0.06 75);
+  --color-status-bad: oklch(0.68 0.18 28);
+  --color-status-bad-soft: oklch(0.32 0.07 28);
 }
 
 /* Base reset */
@@ -66,27 +112,168 @@ html {
   color: var(--color-ink-900);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01" 1, "cv11" 1;
 }
 
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink-900);
   min-height: 100dvh;
+  font-family: var(--font-sans);
 }
 
-/* Focus ring, accessible everywhere */
+/*
+ * Focus ring: brand ocean, no gray neutral ring.
+ * Uniforme en inputs, selects, buttons y links.
+ */
 :focus-visible {
-  outline: 2px solid var(--color-ink-900);
+  outline: 2px solid var(--color-focus);
   outline-offset: 2px;
   border-radius: 2px;
 }
 
-/* Hairline table row hover — restrained */
+/*
+ * Hairline table row hover — restrained, mantiene densidad operativa.
+ */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* Subtle entry for KPI tiles, no bouncy spring */
+/*
+ * Subtle entry para KPI tiles — sin spring, solo cambio de color.
+ * Respeta prefers-reduced-motion.
+ */
 .kpi-tile {
-  transition: background-color 200ms ease, border-color 200ms ease;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kpi-tile,
+  .stock-bar-fill,
+  .nav-link,
+  .btn-base {
+    transition: none !important;
+  }
+}
+
+/*
+ * Barra horizontal de stock — distintivo de la identidad operativa.
+ *
+ * El contenedor es una pista plana de 3px de alto con esquinas apenas
+ * redondeadas. El relleno codifica dos cosas en una sola mirada:
+ *   - el COLOR indica el estado (ok / bajo / crítico)
+ *   - el ANCHO indica qué tan cerca se está del umbral mínimo
+ *
+ * Si stockMinimo = 0 el producto no se gestiona → barra al 100% en verde.
+ * En caso contrario: ratio = stockActual / stockMinimo, capping en 100%.
+ */
+.stock-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 3px;
+  background-color: var(--color-line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stock-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 220ms ease;
+}
+
+.stock-bar-fill[data-status="ok"] {
+  background-color: var(--color-status-ok);
+}
+.stock-bar-fill[data-status="bajo"] {
+  background-color: var(--color-status-warn);
+}
+.stock-bar-fill[data-status="critico"] {
+  background-color: var(--color-status-bad);
+}
+
+/*
+ * Variant "with threshold marker": una marca vertical al 100% indica
+ * dónde está el umbral mínimo. Útil cuando un producto está muy por
+ * encima del mínimo y querés ver de cuánto es la "zona segura".
+ */
+.stock-bar-marked::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: 100%;
+  width: 1px;
+  background-color: var(--color-ink-500);
+  opacity: 0.55;
+}
+
+/*
+ * Marca monoespaciada — para SKUs, IDs, timestamps, números tabulares.
+ * Asegura que IBM Plex Mono se use donde corresponde.
+ */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/*
+ * Etiqueta superior del Dashboard — eyebrow técnico en mono.
+ */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-ocean);
+  font-weight: 500;
+}
+
+/*
+ * Reset del padding de filas para densidad media-alta.
+ * Sin esto, los `py-3` de Tailwind dejan mucho aire muerto.
+ */
+.dense-row > td {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+/*
+ * Nav link del Header — estado activo usa ocean, hover tinta más fuerte.
+ */
+.nav-link {
+  border-radius: 4px;
+  padding: 0.375rem 0.75rem;
+  color: var(--color-ink-700);
+  transition: color 160ms ease, background-color 160ms ease;
+}
+.nav-link:hover {
+  background-color: var(--color-surface-muted);
+  color: var(--color-ink-900);
+}
+.nav-link[aria-current="page"] {
+  color: var(--color-ocean);
+  background-color: var(--color-ocean-soft);
+}
+
+/*
+ * Botón base — estados consistentes entre primario / ghost / danger.
+ */
+.btn-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    transform 100ms ease;
+}
+.btn-base:active {
+  transform: translateY(1px);
 }

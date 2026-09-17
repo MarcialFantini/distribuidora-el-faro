@@ -186,14 +186,14 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
     <div className="mx-auto w-full max-w-2xl">
       <a
         href="/"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-700)] hover:text-[var(--color-ink-900)]"
+        className="inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-700)] hover:text-[var(--color-ocean)]"
       >
         <ArrowLeft size={14} weight="bold" aria-hidden="true" />
         Volver al inventario
       </a>
 
       <div className="mt-4">
-        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-ink-500)]">
+        <p className="eyebrow">
           {mode === "create" ? "Alta de producto" : "Edición de producto"}
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--color-ink-900)] sm:text-[28px]">
@@ -228,7 +228,7 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
       <form
         onSubmit={onSubmit}
         noValidate
-        className="mt-6 space-y-5 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6"
+        className="mt-6 space-y-5 rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6"
       >
         {/* Nombre */}
         <Field
@@ -245,7 +245,7 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
             autoComplete="off"
             placeholder="Ej.: Arroz largo fino 1 kg"
             aria-invalid={Boolean(showError("nombre"))}
-            className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-ink-700)] focus:outline-none"
+            className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-focus)] focus:outline-none"
           />
         </Field>
 
@@ -282,7 +282,7 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
                 placeholder="ARR-LAR-001"
                 spellCheck={false}
                 aria-invalid={Boolean(showError("sku"))}
-                className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] pl-9 pr-3 font-mono text-sm uppercase tracking-wide text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-ink-700)] focus:outline-none"
+                className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] pl-9 pr-3 font-mono text-sm uppercase tracking-wide text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-focus)] focus:outline-none"
               />
             </div>
           </Field>
@@ -293,7 +293,7 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
               onChange={(e) =>
                 setForm((f) => ({ ...f, categoria: e.target.value as Category }))
               }
-              className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] focus:border-[var(--color-ink-700)] focus:outline-none"
+              className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] focus:border-[var(--color-focus)] focus:outline-none"
             >
               {CATEGORY_OPTIONS.map((c) => (
                 <option key={c} value={c}>
@@ -321,7 +321,7 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
               value={form.stockActual}
               onChange={(e) => setForm((f) => ({ ...f, stockActual: e.target.value }))}
               aria-invalid={Boolean(showError("stockActual"))}
-              className="tabular h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-right text-sm text-[var(--color-ink-900)] focus:border-[var(--color-ink-700)] focus:outline-none"
+              className="mono h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-right text-sm text-[var(--color-ink-900)] focus:border-[var(--color-focus)] focus:outline-none"
             />
           </Field>
           <Field
@@ -340,7 +340,7 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
               value={form.stockMinimo}
               onChange={(e) => setForm((f) => ({ ...f, stockMinimo: e.target.value }))}
               aria-invalid={Boolean(showError("stockMinimo"))}
-              className="tabular h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-right text-sm text-[var(--color-ink-900)] focus:border-[var(--color-ink-700)] focus:outline-none"
+              className="mono h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-right text-sm text-[var(--color-ink-900)] focus:border-[var(--color-focus)] focus:outline-none"
             />
           </Field>
           <Field id="f-unidad" label="Unidad" required>
@@ -353,7 +353,7 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
                   unidad: e.target.value as FormState["unidad"],
                 }))
               }
-              className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] focus:border-[var(--color-ink-700)] focus:outline-none"
+              className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] focus:border-[var(--color-focus)] focus:outline-none"
             >
               {UNIDAD_OPTIONS.map((u) => (
                 <option key={u} value={u}>
@@ -387,7 +387,7 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
               onChange={(e) => setForm((f) => ({ ...f, precioUnitario: e.target.value }))}
               placeholder="0"
               aria-invalid={Boolean(showError("precioUnitario"))}
-              className="tabular h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] pl-7 pr-3 text-right text-sm text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-ink-700)] focus:outline-none"
+              className="mono h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] pl-7 pr-3 text-right text-sm text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-focus)] focus:outline-none"
             />
           </div>
           {form.precioUnitario && parseArsInput(form.precioUnitario) !== null ? (
@@ -403,13 +403,13 @@ export default function ProductForm({ mode, sku: skuProp }: Props) {
         <div className="flex flex-col-reverse gap-2 border-t border-[var(--color-line)] pt-4 sm:flex-row sm:justify-end">
           <a
             href="/"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-4 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
+            className="btn-base h-10 border border-[var(--color-line)] bg-[var(--color-surface)] px-4 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
           >
             Cancelar
           </a>
           <button
             type="submit"
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-[var(--color-ink-900)] px-4 text-sm font-medium text-[var(--color-canvas)] transition-colors hover:bg-[var(--color-ink-700)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-base h-10 bg-[var(--color-ocean)] px-4 text-sm font-medium text-white hover:bg-[var(--color-ocean-deep)] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!hydrated || savedOk === "ok"}
           >
             <FloppyDisk size={14} weight="bold" aria-hidden="true" />

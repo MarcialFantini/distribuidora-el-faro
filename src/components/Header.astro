@@ -1,6 +1,9 @@
 ---
 // Static header shell. The search input + theme toggle are React islands
 // (see SearchBox.tsx and ThemeToggle.tsx) so they hydrate only where needed.
+//
+// Identidad Distribuidora El Faro: marca ocean, mono en la insignia,
+// densidad operativa (sin airy marketing).
 import SearchBox from "../components/SearchBox";
 import ThemeToggle from "../components/ThemeToggle";
 ---
@@ -9,7 +12,7 @@ import ThemeToggle from "../components/ThemeToggle";
   class="sticky top-0 z-30 border-b border-[var(--color-line)] bg-[var(--color-canvas)]/85 backdrop-blur supports-[backdrop-filter]:bg-[var(--color-canvas)]/70"
 >
   <div
-    class="mx-auto flex w-full max-w-[1320px] items-center gap-3 px-4 py-3 sm:gap-6 sm:px-6 sm:py-4"
+    class="mx-auto flex w-full max-w-[1320px] items-center gap-3 px-4 py-2.5 sm:gap-6 sm:px-6 sm:py-3"
   >
     <a
       href="/"
@@ -17,29 +20,21 @@ import ThemeToggle from "../components/ThemeToggle";
       aria-label="Distribuidora del Sur — Inicio"
     >
       <span
-        class="grid h-7 w-7 place-items-center rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-ink-700)]"
+        class="grid h-7 w-7 place-items-center rounded-[4px] bg-[var(--color-ocean)] font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
         aria-hidden="true"
       >
         DS
       </span>
-      <span class="text-sm sm:text-[15px]">Distribuidora del Sur</span>
+      <span class="text-[14px] sm:text-[15px]">Distribuidora del Sur</span>
       <span
-        class="hidden rounded-sm border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--color-ink-500)] sm:inline"
-        >Inventario</span
+        class="hidden rounded-sm border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 py-[1px] font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--color-ink-500)] sm:inline"
+        >INV · v1</span
       >
     </a>
 
     <nav class="ml-2 hidden items-center gap-1 text-sm md:flex" aria-label="Principal">
-      <a
-        href="/"
-        class="rounded-md px-3 py-1.5 text-[var(--color-ink-700)] transition-colors hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
-        >Inventario</a
-      >
-      <a
-        href="/producto/nuevo"
-        class="rounded-md px-3 py-1.5 text-[var(--color-ink-700)] transition-colors hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
-        >Nuevo producto</a
-      >
+      <a href="/" class="nav-link" aria-current="page">Inventario</a>
+      <a href="/producto/nuevo" class="nav-link">Nuevo producto</a>
     </nav>
 
     <div class="ml-auto flex items-center gap-2 sm:gap-3">

@@ -112,7 +112,7 @@ export default function SearchBox() {
           placeholder="Buscar SKU o nombre"
           aria-label="Buscar producto por SKU o nombre"
           autoComplete="off"
-          className="h-9 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] pl-9 pr-12 text-sm text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-ink-700)] focus:outline-none"
+          className="h-9 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] pl-9 pr-12 text-sm text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-focus)] focus:outline-none"
         />
         <kbd
           aria-hidden="true"

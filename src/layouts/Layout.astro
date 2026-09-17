@@ -20,9 +20,23 @@ const {
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1a1a1d" media="(prefers-color-scheme: dark)" />
+    <!-- Brand: Distribuidora El Faro — ocean #0A6B8C -->
+    <meta name="theme-color" content="#0A6B8C" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0F1418" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!--
+      Bunny Fonts — IBM Plex Sans (UI) + IBM Plex Mono (números, IDs, SKUs).
+      GDPR-friendly Google Fonts drop-in. Sin dependencias nuevas en el proyecto.
+      Preconnect + dns-prefetch para minimizar el handshake.
+    -->
+    <link rel="preconnect" href="https://fonts.bunny.net" />
+    <link rel="dns-prefetch" href="https://fonts.bunny.net" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.bunny.net/css?family=ibm-plex-sans:400,500,600,700|ibm-plex-mono:400,500,600&display=swap"
+    />
+
     <title>{title}</title>
     <!--
       Theme bootstrap is intentionally inline so it runs before first paint and
@@ -47,7 +61,7 @@ const {
   <body class="bg-[var(--color-canvas)] text-[var(--color-ink-900)] antialiased">
     <a
       href="#main"
-      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-[var(--color-ink-900)] focus:px-3 focus:py-2 focus:text-sm focus:text-[var(--color-canvas)]"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-[var(--color-ocean)] focus:px-3 focus:py-2 focus:text-sm focus:text-white"
     >
       Saltar al contenido principal
     </a>

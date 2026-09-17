@@ -38,8 +38,25 @@ import {
 //   * KPI derivation
 //   * filters (category, status, search) — search reads ?q= from the URL
 //   * the product table with inline +/- stock controls and quick-edit
+//   * a horizontal stock-progress bar per row (distintivo de la identidad)
 //   * a "reset to seed" action (clears localStorage)
+//
+// Identidad Distribuidora El Faro — operativa, densa, sin ornamento.
 // ---------------------------------------------------------------------------
+
+/**
+ * Calcula el ancho de la barra de stock (0–100) en función del umbral.
+ *
+ *   - Si stockMinimo === 0: producto no gestionado, barra llena en verde.
+ *   - Si no: ratio = stockActual / stockMinimo, con tope en 100%.
+ *     (Un producto al 300% del mínimo sigue mostrando 100% — el umbral es
+ *      lo que importa para la alerta, no un techo arbitrario de inventario.)
+ */
+function stockBarPct(stockActual: number, stockMinimo: number): number {
+  if (stockMinimo <= 0) return 100;
+  if (stockActual <= 0) return 0;
+  return Math.min(100, (stockActual / stockMinimo) * 100);
+}
 
 const CATEGORY_OPTIONS: { value: Category | "Todas"; label: string }[] = [
   { value: "Todas", label: "Todas las categorías" },
@@ -192,9 +209,7 @@ export default function Dashboard() {
       {/* Header strip */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--color-ink-500)]">
-            Panel principal
-          </p>
+          <p className="eyebrow">Panel principal</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--color-ink-900)] sm:text-[28px]">
             Inventario
           </h1>
@@ -206,7 +221,7 @@ export default function Dashboard() {
         <div className="flex flex-wrap items-center gap-2">
           <a
             href="/producto/nuevo"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[var(--color-ink-900)] px-3 text-sm font-medium text-[var(--color-canvas)] transition-colors hover:bg-[var(--color-ink-700)] active:translate-y-px"
+            className="btn-base h-9 bg-[var(--color-ocean)] px-3 text-sm text-white hover:bg-[var(--color-ocean-deep)]"
           >
             <Plus size={14} weight="bold" aria-hidden="true" />
             Nuevo producto
@@ -214,7 +229,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => setConfirmReset(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-700)] transition-colors hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)] active:translate-y-px"
+            className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
           >
             <ArrowClockwise size={14} weight="bold" aria-hidden="true" />
             Restablecer
@@ -228,7 +243,7 @@ export default function Dashboard() {
       {/* Filters */}
       <section
         aria-label="Filtros"
-        className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-4 sm:p-5"
+        className="rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] p-4 sm:p-5"
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_220px_220px]">
           <div>
@@ -245,7 +260,7 @@ export default function Dashboard() {
                 placeholder="SKU o nombre"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-ink-700)] focus:outline-none"
+                className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-focus)] focus:outline-none"
               />
             </div>
           </div>
@@ -301,12 +316,12 @@ export default function Dashboard() {
       {/* Table */}
       <section
         aria-label="Listado de productos"
-        className="overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)]"
+        className="overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-surface)]"
       >
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-[var(--color-line)] bg-[var(--color-surface-muted)] text-left text-[11px] uppercase tracking-[0.08em] text-[var(--color-ink-500)]">
+              <tr className="border-b border-[var(--color-line)] bg-[var(--color-surface-muted)] text-left text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--color-ink-500)]">
                 <Th onClick={() => changeSort("nombre")} active={sortKey === "nombre"} dir={sortDir}>
                   Producto
                 </Th>
@@ -342,16 +357,18 @@ export default function Dashboard() {
                 <Th align="right">Acciones</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--color-line)]">
+            <tbody className="divide-y divide-[var(--color-line)] dense-row">
               {!hydrated ? (
                 <tr>
-                  <td colSpan={7} className="p-6 text-center text-[var(--color-ink-500)]">
-                    Cargando…
+                  <td colSpan={7} className="px-3 py-8 text-center text-[var(--color-ink-500)]">
+                    <span className="mono text-[11px] uppercase tracking-[0.12em]">
+                      Cargando catálogo…
+                    </span>
                   </td>
                 </tr>
               ) : sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-10 text-center">
+                  <td colSpan={7} className="px-3 py-10 text-center">
                     <p className="text-sm text-[var(--color-ink-700)]">
                       No hay productos que coincidan con los filtros aplicados.
                     </p>
@@ -362,7 +379,7 @@ export default function Dashboard() {
                         setEstado("todos");
                         setQuery("");
                       }}
-                      className="mt-3 inline-flex items-center gap-1 rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
+                      className="btn-base mt-3 h-8 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-xs text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
                     >
                       Limpiar filtros
                     </button>
@@ -391,9 +408,9 @@ export default function Dashboard() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="reset-title"
-          className="fixed inset-0 z-40 grid place-items-center bg-[var(--color-ink-900)]/40 p-4"
+          className="fixed inset-0 z-40 grid place-items-center bg-[var(--color-ink-900)]/50 p-4"
         >
-          <div className="w-full max-w-sm rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-5 shadow-xl">
+          <div className="w-full max-w-sm rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] p-5 shadow-xl">
             <h2
               id="reset-title"
               className="text-base font-semibold text-[var(--color-ink-900)]"
@@ -408,14 +425,14 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => setConfirmReset(false)}
-                className="h-9 rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
+                className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={onReset}
-                className="h-9 rounded-md bg-[var(--color-status-bad)] px-3 text-sm font-medium text-white hover:opacity-90"
+                className="btn-base h-9 bg-[var(--color-status-bad)] px-3 text-sm font-medium text-white hover:opacity-90"
               >
                 Sí, restablecer
               </button>
@@ -446,10 +463,10 @@ function KpiStrip({ kpis }: { kpis: Kpis }) {
   return (
     <section
       aria-label="Indicadores"
-      className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-4"
+      className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-4"
     >
       <Kpi
-        icon={<Package size={16} weight="duotone" aria-hidden="true" />}
+        icon={<Package size={15} weight="bold" aria-hidden="true" />}
         label="Productos"
         value={formatNum(kpis.totalProductos)}
         sub={`${formatNum(kpis.totalCategorias)} categorías`}
@@ -457,10 +474,10 @@ function KpiStrip({ kpis }: { kpis: Kpis }) {
       <Kpi
         icon={
           <WarningCircle
-            size={16}
-            weight="duotone"
+            size={15}
+            weight="bold"
             aria-hidden="true"
-            className="text-[var(--color-status-warn)]"
+            style={{ color: "var(--color-status-warn)" }}
           />
         }
         label="Bajo stock"
@@ -471,10 +488,10 @@ function KpiStrip({ kpis }: { kpis: Kpis }) {
       <Kpi
         icon={
           <WarningCircle
-            size={16}
-            weight="duotone"
+            size={15}
+            weight="bold"
             aria-hidden="true"
-            className="text-[var(--color-status-bad)]"
+            style={{ color: "var(--color-status-bad)" }}
           />
         }
         label="Críticos"
@@ -487,7 +504,7 @@ function KpiStrip({ kpis }: { kpis: Kpis }) {
         tone={kpis.criticoCount > 0 ? "bad" : "neutral"}
       />
       <Kpi
-        icon={<ArrowsDownUp size={16} weight="duotone" aria-hidden="true" />}
+        icon={<ArrowsDownUp size={15} weight="bold" aria-hidden="true" />}
         label="Valor estimado"
         value={formatArs(kpis.valorInventario)}
         sub="Stock × precio unitario"
@@ -516,15 +533,15 @@ function Kpi({
         ? "text-[var(--color-status-warn)]"
         : "text-[var(--color-ink-900)]";
   return (
-    <div className="kpi-tile flex flex-col gap-2 bg-[var(--color-surface)] p-4">
+    <div className="kpi-tile flex flex-col gap-1.5 bg-[var(--color-surface)] p-4">
       <div className="flex items-center gap-2 text-[var(--color-ink-500)]">
         {icon}
-        <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
+        <span className="text-[10.5px] font-medium uppercase tracking-[0.1em]">
           {label}
         </span>
       </div>
       <p
-        className={`tabular text-2xl font-semibold leading-none tracking-tight ${valueClass}`}
+        className={`mono text-[22px] font-semibold leading-none tracking-tight ${valueClass}`}
       >
         {value}
       </p>
@@ -563,13 +580,13 @@ function Th({
   return (
     <th
       scope="col"
-      className={`${alignClass} ${mobileClass} px-3 py-2 font-medium`}
+      className={`${alignClass} ${mobileClass} px-3 py-1.5 font-medium`}
     >
       <button
         type="button"
         onClick={onClick}
         className={`inline-flex items-center gap-1 rounded-sm transition-colors hover:text-[var(--color-ink-900)] ${
-          active ? "text-[var(--color-ink-900)]" : ""
+          active ? "text-[var(--color-ocean)]" : ""
         }`}
       >
         {children}
@@ -611,7 +628,7 @@ function FilterSelect<T extends string>({
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] focus:border-[var(--color-ink-700)] focus:outline-none"
+        className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] focus:border-[var(--color-focus)] focus:outline-none"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -660,35 +677,34 @@ function ProductRow({
   }
 
   return (
-    <tr className="group align-middle">
-      <td className="px-3 py-3">
-        <div className="flex items-start gap-3">
-          <span
-            className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-            style={{
-              backgroundColor:
-                status === "critico"
-                  ? "var(--color-status-bad)"
-                  : status === "bajo"
-                    ? "var(--color-status-warn)"
-                    : "var(--color-status-ok)",
-            }}
-            aria-hidden="true"
-          />
-          <div className="min-w-0">
-            <p className="truncate font-medium text-[var(--color-ink-900)]">
-              {product.nombre}
-            </p>
-            <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-[var(--color-ink-500)]">
+    <tr className="group align-middle hover:bg-[var(--color-surface-muted)]/40">
+      <td className="px-3 py-2.5">
+        <div className="min-w-0">
+          <p className="truncate font-medium text-[var(--color-ink-900)]">
+            {product.nombre}
+          </p>
+          <div className="mt-1 flex items-center gap-2">
+            <p className="mono text-[10.5px] uppercase tracking-[0.04em] text-[var(--color-ink-500)]">
               {product.sku}
             </p>
+            <div
+              className="stock-bar flex-1"
+              role="img"
+              aria-label={`Nivel de stock: ${formatNum(product.stockActual)} ${product.unidad} de ${formatNum(product.stockMinimo)} mínimos`}
+            >
+              <span
+                className="stock-bar-fill"
+                data-status={status}
+                style={{ width: `${stockBarPct(product.stockActual, product.stockMinimo)}%` }}
+              />
+            </div>
           </div>
         </div>
       </td>
-      <td className="hidden px-3 py-3 text-[var(--color-ink-700)] sm:table-cell">
+      <td className="hidden px-3 py-2.5 text-[var(--color-ink-700)] sm:table-cell">
         {product.categoria}
       </td>
-      <td className="px-3 py-3 text-right">
+      <td className="px-3 py-2.5 text-right">
         {editing ? (
           <div className="inline-flex items-center gap-1">
             <input
@@ -705,12 +721,12 @@ function ProductRow({
                 }
               }}
               aria-label={`Stock actual de ${product.nombre}`}
-              className="tabular h-8 w-20 rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-right text-sm text-[var(--color-ink-900)] focus:border-[var(--color-ink-700)] focus:outline-none"
+              className="mono h-8 w-20 rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-right text-sm text-[var(--color-ink-900)] focus:border-[var(--color-focus)] focus:outline-none"
             />
             <button
               type="button"
               onClick={commit}
-              className="grid h-8 w-8 place-items-center rounded-md bg-[var(--color-ink-900)] text-[var(--color-canvas)] hover:bg-[var(--color-ink-700)]"
+              className="btn-base grid h-8 w-8 place-items-center bg-[var(--color-ocean)] text-white hover:bg-[var(--color-ocean-deep)]"
               aria-label="Guardar stock"
             >
               <CheckCircle size={14} weight="bold" aria-hidden="true" />
@@ -721,7 +737,7 @@ function ProductRow({
                 setDraft(String(product.stockActual));
                 setEditing(false);
               }}
-              className="grid h-8 w-8 place-items-center rounded-md border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
+              className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
               aria-label="Cancelar edición"
             >
               <X size={14} weight="bold" aria-hidden="true" />
@@ -734,18 +750,18 @@ function ProductRow({
               onClick={() => onAdjust(product.sku, -1)}
               disabled={product.stockActual <= 0}
               aria-label={`Restar 1 ${product.unidad} a ${product.nombre}`}
-              className="grid h-8 w-8 place-items-center rounded-md border border-[var(--color-line)] text-[var(--color-ink-700)] transition-colors hover:bg-[var(--color-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               −
             </button>
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="tabular min-w-[3.5rem] rounded-md border border-transparent px-2 py-1 text-right font-semibold text-[var(--color-ink-900)] hover:border-[var(--color-line)]"
+              className="mono min-w-[3.5rem] rounded-md border border-transparent px-2 py-1 text-right font-semibold text-[var(--color-ink-900)] hover:border-[var(--color-line)]"
               aria-label={`Editar stock de ${product.nombre}`}
             >
               {formatNum(product.stockActual)}
-              <span className="ml-1 text-[11px] font-normal text-[var(--color-ink-500)]">
+              <span className="ml-1 font-sans text-[11px] font-normal text-[var(--color-ink-500)]">
                 {product.unidad}
               </span>
             </button>
@@ -753,43 +769,45 @@ function ProductRow({
               type="button"
               onClick={() => onAdjust(product.sku, +1)}
               aria-label={`Sumar 1 ${product.unidad} a ${product.nombre}`}
-              className="grid h-8 w-8 place-items-center rounded-md border border-[var(--color-line)] text-[var(--color-ink-700)] transition-colors hover:bg-[var(--color-surface-muted)]"
+              className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
             >
               +
             </button>
           </div>
         )}
       </td>
-      <td className="hidden px-3 py-3 text-right font-mono text-[var(--color-ink-700)] sm:table-cell">
-        {formatNum(product.stockMinimo)}
-        <span className="ml-1 text-[11px] text-[var(--color-ink-500)]">
-          {product.unidad}
+      <td className="hidden px-3 py-2.5 text-right text-[var(--color-ink-700)] sm:table-cell">
+        <span className="mono">
+          {formatNum(product.stockMinimo)}
+          <span className="ml-1 font-sans text-[11px] text-[var(--color-ink-500)]">
+            {product.unidad}
+          </span>
         </span>
       </td>
-      <td className="hidden px-3 py-3 text-right font-mono text-[var(--color-ink-700)] sm:table-cell">
-        {formatArs(product.precioUnitario)}
+      <td className="hidden px-3 py-2.5 text-right text-[var(--color-ink-700)] sm:table-cell">
+        <span className="mono">{formatArs(product.precioUnitario)}</span>
       </td>
-      <td className="px-3 py-3">
+      <td className="px-3 py-2.5">
         <StatusBadge status={status} />
       </td>
-      <td className="px-3 py-3 text-right">
+      <td className="px-3 py-2.5 text-right">
         <div className="inline-flex items-center justify-end gap-1">
           <a
             href={`/producto/editar?sku=${encodeURIComponent(product.sku)}`}
-            className="grid h-8 w-8 place-items-center rounded-md border border-[var(--color-line)] text-[var(--color-ink-700)] transition-colors hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
+            className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
             aria-label={`Editar ${product.nombre}`}
             title="Editar"
           >
-            <PencilSimple size={14} weight="regular" aria-hidden="true" />
+            <PencilSimple size={14} weight="bold" aria-hidden="true" />
           </a>
           <button
             type="button"
             onClick={() => onDelete(product.sku)}
-            className="grid h-8 w-8 place-items-center rounded-md border border-[var(--color-line)] text-[var(--color-ink-700)] transition-colors hover:border-[var(--color-status-bad)] hover:bg-[var(--color-status-bad)]/10 hover:text-[var(--color-status-bad)]"
+            className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:border-[var(--color-status-bad)] hover:bg-[var(--color-status-bad)]/10 hover:text-[var(--color-status-bad)]"
             aria-label={`Eliminar ${product.nombre}`}
             title="Eliminar"
           >
-            <TrashSimple size={14} weight="regular" aria-hidden="true" />
+            <TrashSimple size={14} weight="bold" aria-hidden="true" />
           </button>
         </div>
       </td>
@@ -805,27 +823,27 @@ function StatusBadge({
   const palette = {
     ok: {
       fg: "var(--color-status-ok)",
-      bg: "color-mix(in oklch, var(--color-status-ok) 12%, transparent)",
+      bg: "color-mix(in oklch, var(--color-status-ok) 14%, transparent)",
       label: statusLabel("ok"),
-      border: "color-mix(in oklch, var(--color-status-ok) 35%, transparent)",
+      border: "color-mix(in oklch, var(--color-status-ok) 38%, transparent)",
     },
     bajo: {
-      fg: "var(--color-status-warn)",
-      bg: "color-mix(in oklch, var(--color-status-warn) 14%, transparent)",
+      fg: "var(--color-alert)",
+      bg: "color-mix(in oklch, var(--color-alert) 16%, transparent)",
       label: statusLabel("bajo"),
-      border: "color-mix(in oklch, var(--color-status-warn) 40%, transparent)",
+      border: "color-mix(in oklch, var(--color-alert) 45%, transparent)",
     },
     critico: {
       fg: "var(--color-status-bad)",
-      bg: "color-mix(in oklch, var(--color-status-bad) 14%, transparent)",
+      bg: "color-mix(in oklch, var(--color-status-bad) 16%, transparent)",
       label: statusLabel("critico"),
-      border: "color-mix(in oklch, var(--color-status-bad) 45%, transparent)",
+      border: "color-mix(in oklch, var(--color-status-bad) 48%, transparent)",
     },
   } as const;
   const p = palette[status];
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium"
+      className="mono inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-[0.04em]"
       style={{ color: p.fg, backgroundColor: p.bg, borderColor: p.border }}
     >
       <span
