@@ -4,6 +4,8 @@ import {
   ArrowsDownUp,
   CaretDown,
   CheckCircle,
+  ClockCounterClockwise,
+  FileCsv,
   Package,
   PencilSimple,
   Plus,
@@ -29,6 +31,9 @@ import {
   setStock,
   writeState,
 } from "../lib/storage";
+import AlertsBanner from "./AlertsBanner";
+import CSVImporter from "./CSVImporter";
+import MovementHistory from "./MovementHistory";
 
 // ---------------------------------------------------------------------------
 // Dashboard island
@@ -89,6 +94,8 @@ export default function Dashboard() {
   const [sortKey, setSortKey] = useState<SortKey>("estado");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
 
@@ -195,6 +202,35 @@ export default function Dashboard() {
     flash("Catálogo restablecido al estado inicial");
   }, [flash]);
 
+  // ----- CSV import -------------------------------------------------------
+  const onImportCsv = useCallback(
+    (imported: Product[]) => {
+      setProducts((prev) => [...prev, ...imported]);
+      setCsvOpen(false);
+      flash(
+        `${formatNum(imported.length)} producto${imported.length === 1 ? "" : "s"} importado${imported.length === 1 ? "" : "s"}`,
+      );
+    },
+    [flash],
+  );
+
+  // ----- Filter by alert / history ----------------------------------------
+  const focusProduct = useCallback((sku: string) => {
+    // Filtra la tabla al producto clickeado. Resetea los demás filtros
+    // para que el resultado sea predecible.
+    setCategoria("Todas");
+    setEstado("todos");
+    setQuery(sku);
+  }, []);
+
+  const openHistory = useCallback((product: Product) => {
+    setHistoryProduct(product);
+  }, []);
+
+  const closeHistory = useCallback(() => {
+    setHistoryProduct(null);
+  }, []);
+
   function changeSort(key: SortKey) {
     if (key === sortKey) setSortDir(sortDir === "asc" ? "desc" : "asc");
     else {
@@ -228,6 +264,14 @@ export default function Dashboard() {
           </a>
           <button
             type="button"
+            onClick={() => setCsvOpen(true)}
+            className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
+          >
+            <FileCsv size={14} weight="bold" aria-hidden="true" />
+            Importar desde Excel/CSV
+          </button>
+          <button
+            type="button"
             onClick={() => setConfirmReset(true)}
             className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
           >
@@ -236,6 +280,9 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Alerts banner — auto-detectado, sin config manual */}
+      <AlertsBanner products={products} onSelectProduct={focusProduct} />
 
       {/* KPI strip */}
       <KpiStrip kpis={kpis} />
@@ -393,6 +440,7 @@ export default function Dashboard() {
                     onAdjust={onAdjust}
                     onSetStock={onSetStock}
                     onDelete={onDelete}
+                    onOpenHistory={openHistory}
                     flash={flash}
                   />
                 ))
@@ -451,6 +499,21 @@ export default function Dashboard() {
           {toast}
         </div>
       ) : null}
+
+      {/* CSV importer modal */}
+      <CSVImporter
+        open={csvOpen}
+        existingProducts={products}
+        onClose={() => setCsvOpen(false)}
+        onImport={onImportCsv}
+      />
+
+      {/* Movement history drawer */}
+      <MovementHistory
+        open={historyProduct !== null}
+        product={historyProduct}
+        onClose={closeHistory}
+      />
     </div>
   );
 }
@@ -645,17 +708,20 @@ function ProductRow({
   onAdjust,
   onSetStock,
   onDelete,
+  onOpenHistory,
   flash,
 }: {
   product: Product;
   onAdjust: (sku: string, delta: number) => void;
   onSetStock: (sku: string, value: number) => void;
   onDelete: (sku: string) => void;
+  onOpenHistory: (product: Product) => void;
   flash: (msg: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(product.stockActual));
   const status = statusOf(product);
+  const movCount = (product.movimientos ?? []).length;
 
   useEffect(() => {
     setDraft(String(product.stockActual));
@@ -792,6 +858,29 @@ function ProductRow({
       </td>
       <td className="px-3 py-2.5 text-right">
         <div className="inline-flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => onOpenHistory(product)}
+            className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
+            aria-label={`Ver historial de ${product.nombre}`}
+            title={
+              movCount > 0
+                ? `Ver historial (${formatNum(movCount)})`
+                : "Ver historial"
+            }
+          >
+            <span className="relative">
+              <ClockCounterClockwise size={14} weight="bold" aria-hidden="true" />
+              {movCount > 0 ? (
+                <span
+                  aria-hidden="true"
+                  className="mono absolute -right-2 -top-2 grid h-3.5 min-w-[14px] place-items-center rounded-full bg-[var(--color-ocean)] px-1 text-[9px] font-medium leading-none text-white"
+                >
+                  {movCount > 99 ? "99+" : movCount}
+                </span>
+              ) : null}
+            </span>
+          </button>
           <a
             href={`/producto/editar?sku=${encodeURIComponent(product.sku)}`}
             className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"

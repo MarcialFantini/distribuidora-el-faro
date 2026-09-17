@@ -12,6 +12,26 @@ export type Category =
 
 export type StockStatus = "ok" | "bajo" | "critico";
 
+/**
+ * Tipos de movimiento de stock registrados en el historial.
+ * - "entrada": suma stock (compra, reposición, devolución).
+ * - "salida":  resta stock (venta, consumo interno).
+ * - "ajuste":  corrige stock (conteo físico, merma). Cantidad con signo.
+ */
+export type MovementType = "entrada" | "salida" | "ajuste";
+
+export interface Movimiento {
+  /** ISO datetime completo, e.g. "2026-09-17T14:23:08.000Z" */
+  fecha: string;
+  tipo: MovementType;
+  /** Delta sobre el stock. Positivo para entrada, negativo para salida/ajuste. */
+  cantidad: number;
+  /** Motivo libre: "Venta mostrador", "Conteo físico", "Reposición", etc. */
+  motivo: string;
+  /** Quién lo registró. Hoy hardcoded a "Operario"; futuro: usuarios reales. */
+  usuario: string;
+}
+
 export interface Product {
   /** Stable SKU, uppercase, e.g. "ARR-LAR-001" */
   sku: string;
@@ -29,6 +49,12 @@ export interface Product {
   precioUnitario: number;
   /** ISO date of last movement (informational, not editable) */
   actualizadoEn: string;
+  /**
+   * Historial de movimientos. Opcional para mantener compatibilidad con
+   * datos ya persistidos en localStorage previos a esta versión; los
+   * productos sin historial se tratan como array vacío.
+   */
+  movimientos?: Movimiento[];
 }
 
 // ---------------------------------------------------------------------------
