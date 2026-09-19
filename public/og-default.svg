@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="Distribuidora El Faro — Stock y alertas">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0A6B8C"/>
+      <stop offset="100%" stop-color="#07526D"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+
+  <!-- Monograma EF insignia -->
+  <g transform="translate(80, 90)">
+    <rect x="0" y="0" width="72" height="72" rx="6" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.35)"/>
+    <text x="36" y="50" text-anchor="middle"
+      font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif"
+      font-weight="700" font-size="32" fill="#FFFFFF" letter-spacing="2">EF</text>
+  </g>
+
+  <!-- Headline principal -->
+  <text x="80" y="290"
+    font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif"
+    font-weight="700" font-size="74" fill="#FFFFFF"
+    letter-spacing="-1.5">Distribuidora El Faro</text>
+
+  <!-- Subtítulo -->
+  <text x="80" y="350"
+    font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif"
+    font-weight="400" font-size="30" fill="rgba(255,255,255,0.85)">Stock y alertas</text>
+
+  <!-- Línea separadora -->
+  <line x1="80" y1="400" x2="280" y2="400" stroke="#FFFFFF" stroke-width="3" opacity="0.7"/>
+
+  <!-- Descripción -->
+  <text x="80" y="450"
+    font-family="'IBM Plex Sans','Helvetica Neue',Arial,sans-serif"
+    font-weight="400" font-size="20" fill="rgba(255,255,255,0.75)">Mini sistema de inventario para bebidas y snacks · zona sur GBA</text>
+
+  <!-- Pills de estado (mock) -->
+  <g transform="translate(80, 520)">
+    <rect x="0" y="0" width="160" height="44" rx="22" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.30)"/>
+    <circle cx="22" cy="22" r="6" fill="#FF6B6B"/>
+    <text x="40" y="28"
+      font-family="'IBM Plex Mono','Menlo','Courier New',monospace"
+      font-weight="600" font-size="16" fill="#FFFFFF">3 críticos</text>
+
+    <rect x="180" y="0" width="160" height="44" rx="22" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.30)"/>
+    <circle cx="202" cy="22" r="6" fill="#F5B642"/>
+    <text x="220" y="28"
+      font-family="'IBM Plex Mono','Menlo','Courier New',monospace"
+      font-weight="600" font-size="16" fill="#FFFFFF">8 bajo stock</text>
+
+    <rect x="360" y="0" width="160" height="44" rx="22" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.30)"/>
+    <circle cx="382" cy="22" r="6" fill="#7FD4A4"/>
+    <text x="400" y="28"
+      font-family="'IBM Plex Mono','Menlo','Courier New',monospace"
+      font-weight="600" font-size="16" fill="#FFFFFF">32 SKUs</text>
+  </g>
+
+  <!-- Tag demo esquina inferior derecha -->
+  <text x="1120" y="595" text-anchor="end"
+        font-family="'IBM Plex Mono','Menlo','Courier New',monospace"
+        font-weight="500" font-size="14" fill="rgba(255,255,255,0.55)"
+        letter-spacing="2">DEMO · LOCALSTORAGE</text>
+</svg>

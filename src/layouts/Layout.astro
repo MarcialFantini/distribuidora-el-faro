@@ -4,12 +4,17 @@ import "../styles/global.css";
 interface Props {
   title?: string;
   description?: string;
+  ogImage?: string;
 }
 
 const {
-  title = "Distribuidora del Sur — Inventario",
-  description = "Mini sistema de inventario para Distribuidora del Sur. Demo local, sin backend.",
+  title = "Distribuidora El Faro — Inventario",
+  description = "Mini sistema de inventario para Distribuidora El Faro. Demo local, sin backend.",
+  ogImage = "/og-default.svg",
 } = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? Astro.url);
+const fullTitle = title.includes("Distribuidora El Faro") ? title : `${title} · Distribuidora El Faro`;
 ---
 
 <!doctype html>
@@ -20,9 +25,32 @@ const {
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
     <meta name="color-scheme" content="light dark" />
-    <!-- Brand: Distribuidora El Faro — ocean #0A6B8C -->
     <meta name="theme-color" content="#0A6B8C" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0F1418" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Distribuidora El Faro" />
+    <meta name="application-name" content="Distribuidora El Faro" />
+    <meta name="robots" content="index,follow" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL.href} />
+    <meta property="og:locale" content="es_AR" />
+    <meta property="og:site_name" content="Distribuidora El Faro" />
+    <meta property="og:image" content={new URL(ogImage, Astro.site ?? Astro.url).href} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Distribuidora El Faro — Stock y alertas" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(ogImage, Astro.site ?? Astro.url).href} />
+    <meta name="twitter:image:alt" content="Distribuidora El Faro — Stock y alertas" />
+
+    <link rel="canonical" href={canonicalURL.href} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
     <!--
@@ -37,7 +65,7 @@ const {
       href="https://fonts.bunny.net/css?family=ibm-plex-sans:400,500,600,700|ibm-plex-mono:400,500,600&display=swap"
     />
 
-    <title>{title}</title>
+    <title>{fullTitle}</title>
     <!--
       Theme bootstrap is intentionally inline so it runs before first paint and
       avoids a flash of light theme on dark-mode clients.
@@ -45,7 +73,7 @@ const {
     <script is:inline>
       (function () {
         try {
-          var stored = localStorage.getItem("delsur.theme");
+          var stored = localStorage.getItem("elfaro.theme");
           var prefersDark = window.matchMedia(
             "(prefers-color-scheme: dark)",
           ).matches;

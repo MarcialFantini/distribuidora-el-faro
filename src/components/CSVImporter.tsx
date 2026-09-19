@@ -8,8 +8,9 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import type { Category, Product } from "../data/seed";
+import type { Product } from "../data/seed";
 import { formatNum } from "../lib/inventory";
+import { deriveCategories } from "../lib/categories";
 
 // ---------------------------------------------------------------------------
 // CSVImporter
@@ -38,15 +39,6 @@ const REQUIRED_HEADERS = [
   "unidad",
   "precioUnitario",
 ] as const;
-
-const VALID_CATEGORIES: Category[] = [
-  "Arroz",
-  "Fideos",
-  "Aceite",
-  "Legumbres",
-  "Conservas",
-  "Condimentos",
-];
 
 const VALID_UNIDADES = ["kg", "l", "un"] as const;
 
@@ -158,6 +150,7 @@ function validateRow(
   headers: string[],
   existingSkus: Set<string>,
   seenInBatch: Set<string>,
+  validCategories: Set<string>,
 ): Product | null {
   const e = row.raw;
   const errors: string[] = [];
@@ -186,11 +179,12 @@ function validateRow(
   if (!nombre) errors.push("Nombre vacío.");
   else if (nombre.length < 3) errors.push("Nombre: mínimo 3 caracteres.");
 
-  // Categoría
+  // Categoría — se valida contra el set dinámico del catálogo actual.
+  // Si el usuario creó categorías nuevas desde el módulo Categorías, también valen.
   const categoria = e.categoria ?? "";
   if (!categoria) errors.push("Categoría vacía.");
-  else if (!VALID_CATEGORIES.includes(categoria as Category))
-    errors.push(`Categoría "${categoria}" no válida.`);
+  else if (!validCategories.has(categoria))
+    errors.push(`Categoría "${categoria}" no existe en el catálogo. Creala primero desde Categorías.`);
 
   // Stock actual
   const stockActualStr = e.stockactual ?? "";
@@ -227,7 +221,7 @@ function validateRow(
   const product: Product = {
     sku,
     nombre,
-    categoria: categoria as Category,
+    categoria,
     stockActual,
     stockMinimo,
     unidad,
@@ -242,12 +236,13 @@ function validateRow(
 function validateAll(
   result: ParseResult,
   existingSkus: Set<string>,
+  validCategories: Set<string>,
 ): { valid: Product[]; rows: ParsedRow[] } {
   const seenInBatch = new Set<string>();
   const valid: Product[] = [];
   const rows: ParsedRow[] = [];
   for (const row of result.rows) {
-    const product = validateRow(row, result.headers, existingSkus, seenInBatch);
+    const product = validateRow(row, result.headers, existingSkus, seenInBatch, validCategories);
     if (product) {
       seenInBatch.add(product.sku);
       valid.push(product);
@@ -376,7 +371,10 @@ export default function CSVImporter({
         return;
       }
       const existingSkus = new Set(existingProducts.map((p) => p.sku));
-      const { valid, rows } = validateAll(result, existingSkus);
+      // Categorías válidas: las del catálogo actual + las creadas dinámicamente
+      // (deriveCategories respeta orden seed + alfabético).
+      const validCategories = new Set(deriveCategories(existingProducts));
+      const { valid, rows } = validateAll(result, existingSkus, validCategories);
       setParseResult(result);
       setValidatedRows(rows);
       setValidProducts(valid);

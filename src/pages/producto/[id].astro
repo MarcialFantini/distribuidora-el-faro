@@ -1,0 +1,28 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Header from "../../components/Header.astro";
+import ProductDetail from "../../components/ProductDetail";
+import { SEED_PRODUCTS } from "../../data/seed";
+
+export const prerender = true;
+
+// Astro 7 con output="static" exige getStaticPaths() para rutas dinámicas.
+// Devolvemos TODOS los SKUs del seed; el componente React resuelve el SKU
+// real desde window.location en cliente (también desde el slug de la URL).
+export function getStaticPaths() {
+  return SEED_PRODUCTS.map((p) => ({ params: { id: p.sku } }));
+}
+---
+
+<Layout
+  title="Producto - Distribuidora El Faro"
+  description="Detalle de producto en el inventario."
+>
+  <Header />
+  <main id="main" class="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 sm:py-10">
+    <ProductDetail client:only="react" />
+  </main>
+  <footer class="mx-auto w-full max-w-[1320px] px-4 pb-10 pt-6 sm:px-6">
+    <p class="text-xs text-[var(--color-ink-500)]">Demo local.</p>
+  </footer>
+</Layout>

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 // ---------------------------------------------------------------------------
 // ThemeToggle
 //
-// Persists choice in localStorage under "delsur.theme". The inline boot
+// Persists choice in localStorage under "elfaro.theme". The inline boot
 // script in the layout applies the class on first paint, so this island
 // only needs to sync state when it hydrates.
 // ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ export default function ThemeToggle() {
     else document.documentElement.classList.remove("dark");
     document.documentElement.dataset.theme = next;
     try {
-      localStorage.setItem("delsur.theme", next);
+      localStorage.setItem("elfaro.theme", next);
     } catch {
       /* private mode, ignore */
     }

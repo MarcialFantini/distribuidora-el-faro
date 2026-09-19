@@ -1,19 +1,20 @@
----
-import Layout from "../../layouts/Layout.astro";
-import Header from "../../components/Header.astro";
-import ProductForm from "../../components/ProductForm";
+﻿---
+import Layout from "../layouts/Layout.astro";
+import Header from "../components/Header.astro";
+import SuppliersView from "../components/SuppliersView";
+export const prerender = true;
 ---
 
 <Layout
-  title="Nuevo producto — Distribuidora El Faro"
-  description="Alta de producto en el inventario de Distribuidora El Faro."
+  title="Proveedores — Distribuidora El Faro"
+  description="Listado de proveedores, contacto y SKUs que surten."
 >
   <Header />
   <main
     id="main"
     class="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 sm:py-10"
   >
-    <ProductForm client:load mode="create" />
+    <SuppliersView client:load />
   </main>
   <footer class="mx-auto w-full max-w-[1320px] px-4 pb-10 pt-6 sm:px-6">
     <p class="text-xs text-[var(--color-ink-500)]">

@@ -1,145 +1,200 @@
-import {
-  SEED_PRODUCTS,
+﻿import {
+  SEED_AUDIT,
+  SEED_OPERARIOS,
+  SEED_ORDENES,
+  SEED_PRODUCTS_WITH_MOVS,
+  SEED_PROVEEDORES,
+  type AuditEntry,
   type Movimiento,
   type MovementType,
+  type Operario,
+  type OrdenCompra,
   type Product,
+  type Proveedor,
 } from "../data/seed";
 
 // ---------------------------------------------------------------------------
-// Persistence layer
+// Persistence layer (DEMO, sin backend).
+// Single namespaced localStorage key con esquema versionado.
 //
-// This is a DEMO application. There is NO backend. All state lives in
-// the browser's localStorage under a single namespaced key.
-//
-// The shape on disk:
+// Shape v3 (actual):
 //   {
-//     "version": 1,
-//     "products": Product[]
+//     version: 3,
+//     products: Product[] (con movimientos)
+//     proveedores: Proveedor[]
+//     operarios: Operario[]
+//     ordenes: OrdenCompra[]
+//     audit: AuditEntry[]
+//     activeOperarioId: string | null
 //   }
 //
-// On first load (no key found, or version mismatch), the seed catalog
-// is written to storage. The user can clear localStorage at any time
-// to reset to the seed state.
-//
-// Schema note: `Product.movimientos` is OPTIONAL. Products persisted
-// before this field existed load fine — helpers default it to `[]`.
+// Migración:
+//   - v1 → v3: solo trae products, sembramos el resto.
+//   - v2 → v3: shape idéntico (mismo cliente ficticio "Distribuidora El Faro"),
+//              solo se actualiza la version key para indicar el rename.
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "delsur.inventario.v1";
-const STORAGE_VERSION = 1;
+const STORAGE_KEY = "elfaro.inventario.v3";
+const STORAGE_VERSION = 3;
+
+interface StoredStateV1 {
+  version: 1;
+  products: Product[];
+}
+
+interface StoredStateV2 {
+  version: 2;
+  products: Product[];
+  proveedores: Proveedor[];
+  operarios: Operario[];
+  ordenes: OrdenCompra[];
+  audit: AuditEntry[];
+  activeOperarioId: string | null;
+}
 
 interface StoredState {
-  version: number;
+  version: 3;
   products: Product[];
+  proveedores: Proveedor[];
+  operarios: Operario[];
+  ordenes: OrdenCompra[];
+  audit: AuditEntry[];
+  activeOperarioId: string | null;
 }
 
 function isBrowser(): boolean {
   return typeof window !== "undefined" && typeof localStorage !== "undefined";
 }
 
-export function readState(): StoredState | null {
-  if (!isBrowser()) return null;
+function defaultState(): StoredState {
+  return {
+    version: STORAGE_VERSION,
+    products: SEED_PRODUCTS_WITH_MOVS,
+    proveedores: SEED_PROVEEDORES,
+    operarios: SEED_OPERARIOS,
+    ordenes: SEED_ORDENES,
+    audit: SEED_AUDIT,
+    activeOperarioId: SEED_OPERARIOS[0]?.id ?? null,
+  };
+}
+
+function migrate(raw: string): StoredState | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredState;
+    const parsed = JSON.parse(raw) as { version?: number };
     if (!parsed || typeof parsed !== "object") return null;
-    if (parsed.version !== STORAGE_VERSION) return null;
-    if (!Array.isArray(parsed.products)) return null;
-    return parsed;
+    if (parsed.version === 3) {
+      return parsed as StoredState;
+    }
+    if (parsed.version === 2) {
+      // v2 → v3: shape idéntico, solo bump de version key.
+      // (rename Distribuidora del Sur → Distribuidora El Faro, sin cambios de shape)
+      return { ...(parsed as StoredStateV2), version: 3 };
+    }
+    if (parsed.version === 1) {
+      // v1 → v3: solo trae products, sembramos el resto.
+      const v1 = parsed as StoredStateV1;
+      return {
+        version: 3,
+        products: v1.products ?? [],
+        proveedores: SEED_PROVEEDORES,
+        operarios: SEED_OPERARIOS,
+        ordenes: SEED_ORDENES,
+        audit: SEED_AUDIT,
+        activeOperarioId: SEED_OPERARIOS[0]?.id ?? null,
+      };
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
-export function writeState(products: Product[]): void {
+function readRaw(): StoredState | null {
+  if (!isBrowser()) return null;
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  return migrate(raw);
+}
+
+export function readState(): StoredState | null {
+  return readRaw();
+}
+
+export function writeState(state: StoredState): void {
   if (!isBrowser()) return;
-  const payload: StoredState = {
-    version: STORAGE_VERSION,
-    products,
-  };
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
-    // Quota errors, private-mode Safari etc. Silent: the in-memory
-    // copy is still the source of truth for the session.
+    // Quota / private mode.
   }
 }
 
+// ---------------------------------------------------------------------------
+// Bootstrap: si no hay estado, escribir el seed.
+// ---------------------------------------------------------------------------
+
+export function loadInitial(): StoredState {
+  const existing = readRaw();
+  if (existing) return existing;
+  const seed = defaultState();
+  writeState(seed);
+  return seed;
+}
+
+// ---------------------------------------------------------------------------
+// Convenience accessors (devuelven copias seguras)
+// ---------------------------------------------------------------------------
+
 export function loadProducts(): Product[] {
-  const existing = readState();
-  if (existing && existing.products.length > 0) return existing.products;
-  // First load or empty: write the seed and return it.
-  writeState(SEED_PRODUCTS);
-  return SEED_PRODUCTS.slice();
+  return loadInitial().products.slice();
 }
 
-export function resetToSeed(): Product[] {
-  writeState(SEED_PRODUCTS);
-  return SEED_PRODUCTS.slice();
+export function loadProveedores(): Proveedor[] {
+  return loadInitial().proveedores.slice();
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Devuelve el historial del producto garantizando un array (nunca undefined).
- * Útil para iterar sin optional chaining en cada call site.
- */
-export function movimientosOf(product: Product): Movimiento[] {
-  return product.movimientos ?? [];
+export function loadOperarios(): Operario[] {
+  return loadInitial().operarios.slice();
 }
 
-/**
- * Devuelve el último ID/fecha de movimiento como string, para comparaciones
- * de "actualizadoEn" cuando el producto no registra movimientos manuales.
- */
-function nowIso(): string {
-  return new Date().toISOString();
+export function loadOrdenes(): OrdenCompra[] {
+  return loadInitial().ordenes.slice();
 }
 
-/**
- * Crea un movimiento con timestamp actual, usuario por defecto "Operario"
- * y motivo opcional. Si el delta es 0, devuelve null (no se registra).
- */
-function buildMovement(
-  delta: number,
-  tipo: MovementType,
-  motivo: string,
-): Movimiento | null {
-  if (delta === 0) return null;
-  return {
-    fecha: nowIso(),
-    tipo,
-    cantidad: delta,
-    motivo,
-    usuario: "Operario",
-  };
+export function loadAudit(): AuditEntry[] {
+  return loadInitial().audit.slice();
 }
 
-/**
- * Appends a movement to a product, returning a NEW product object.
- * If `movement` is null, returns the original reference unchanged.
- */
-function appendMovement(product: Product, movement: Movimiento | null): Product {
-  if (!movement) return product;
-  const prev = movimientosOf(product);
-  return { ...product, movimientos: [...prev, movement] };
+export function loadActiveOperarioId(): string | null {
+  return loadInitial().activeOperarioId;
 }
 
 // ---------------------------------------------------------------------------
-// CRUD helpers — return new array, do not mutate in place.
-//
-// setStock / adjustStock ahora registran un movimiento automático en el
-// historial del producto. La motivación por defecto refleja la causa
-// operativa del cambio.
+// Mutators: reciben y devuelven el estado completo actualizado.
+// Cada uno persiste el resultado automáticamente.
 // ---------------------------------------------------------------------------
 
-export function upsertProduct(
-  products: Product[],
-  next: Product,
-): Product[] {
+export function replaceProducts(products: Product[]): void {
+  const s = loadInitial();
+  writeState({ ...s, products });
+}
+
+export function replaceAll(state: Partial<StoredState>): void {
+  const s = loadInitial();
+  writeState({ ...s, ...state });
+}
+
+export function resetToSeed(): StoredState {
+  const seed = defaultState();
+  writeState(seed);
+  return seed;
+}
+
+// ---------------------------------------------------------------------------
+// CRUD helpers sobre products (compatibilidad con código previo)
+// ---------------------------------------------------------------------------
+
+export function upsertProduct(products: Product[], next: Product): Product[] {
   const idx = products.findIndex((p) => p.sku === next.sku);
   if (idx === -1) return [...products, next];
   const copy = products.slice();
@@ -147,11 +202,89 @@ export function upsertProduct(
   return copy;
 }
 
-/**
- * Registra un movimiento manual sin alterar el stock.
- * Útil para anotar conteos o mermas sin tocar el inventario.
- * Si el producto no existe, no hace nada.
- */
+export function deleteProduct(products: Product[], sku: string): Product[] {
+  return products.filter((p) => p.sku !== sku);
+}
+
+// ---------------------------------------------------------------------------
+// Movimientos helpers
+// ---------------------------------------------------------------------------
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+export function movimientosOf(product: Product): Movimiento[] {
+  return product.movimientos ?? [];
+}
+
+function appendMovement(product: Product, movement: Movimiento | null): Product {
+  if (!movement) return product;
+  const prev = movimientosOf(product);
+  return { ...product, movimientos: [...prev, movement] };
+}
+
+export function buildMovement(
+  delta: number,
+  tipo: MovementType,
+  motivo: string,
+  usuario: string,
+): Movimiento | null {
+  if (delta === 0) return null;
+  return { fecha: nowIso(), tipo, cantidad: delta, motivo, usuario };
+}
+
+export function adjustStock(
+  products: Product[],
+  sku: string,
+  delta: number,
+  usuario: string,
+): Product[] {
+  const idx = products.findIndex((p) => p.sku === sku);
+  if (idx === -1) return products;
+  const current = products[idx];
+  const nextStock = Math.max(0, current.stockActual + delta);
+  const effectiveDelta = nextStock - current.stockActual;
+  if (effectiveDelta === 0) return products;
+  const tipo: MovementType = effectiveDelta > 0 ? "entrada" : "salida";
+  const movement = buildMovement(effectiveDelta, tipo, "Ajuste manual", usuario);
+  const baseUpdated: Product = {
+    ...current,
+    stockActual: nextStock,
+    actualizadoEn: new Date().toISOString().slice(0, 10),
+  };
+  const updated = appendMovement(baseUpdated, movement);
+  const copy = products.slice();
+  copy[idx] = updated;
+  return copy;
+}
+
+export function setStock(
+  products: Product[],
+  sku: string,
+  newStock: number,
+  usuario: string,
+): Product[] {
+  const idx = products.findIndex((p) => p.sku === sku);
+  if (idx === -1) return products;
+  const current = products[idx];
+  const safeStock = Math.max(0, newStock);
+  const delta = safeStock - current.stockActual;
+  const movement =
+    delta === 0
+      ? null
+      : buildMovement(delta, "ajuste", "Edición manual", usuario);
+  const baseUpdated: Product = {
+    ...current,
+    stockActual: safeStock,
+    actualizadoEn: new Date().toISOString().slice(0, 10),
+  };
+  const updated = appendMovement(baseUpdated, movement);
+  const copy = products.slice();
+  copy[idx] = updated;
+  return copy;
+}
+
 export function addMovement(
   products: Product[],
   sku: string,
@@ -171,64 +304,57 @@ export function addMovement(
   return copy;
 }
 
-/**
- * +/- stock desde la grilla. delta>0 → entrada; delta<0 → salida.
- * Registra automáticamente el movimiento. Si el delta efectivo es 0
- * (p. ej. -1 sobre stock=0), no se registra movimiento ni se modifica
- * el producto.
- */
-export function adjustStock(
-  products: Product[],
-  sku: string,
-  delta: number,
-): Product[] {
-  const idx = products.findIndex((p) => p.sku === sku);
-  if (idx === -1) return products;
-  const current = products[idx];
-  const nextStock = Math.max(0, current.stockActual + delta);
-  const effectiveDelta = nextStock - current.stockActual;
-  if (effectiveDelta === 0) return products;
-  const tipo: MovementType = effectiveDelta > 0 ? "entrada" : "salida";
-  const motivo = "Ajuste manual";
-  const movement = buildMovement(effectiveDelta, tipo, motivo);
-  const baseUpdated: Product = {
-    ...current,
-    stockActual: nextStock,
-    actualizadoEn: new Date().toISOString().slice(0, 10),
-  };
-  const updated = appendMovement(baseUpdated, movement);
-  const copy = products.slice();
-  copy[idx] = updated;
-  return copy;
-}
+// ---------------------------------------------------------------------------
+// Audit helpers
+// ---------------------------------------------------------------------------
 
 /**
- * Setea el stock a un valor exacto. Registra un movimiento tipo "ajuste"
- * con la diferencia entre el stock previo y el nuevo.
- * Si el valor no cambia, no se registra movimiento.
+ * Deriva el próximo ID de auditoría desde el array actual de entradas.
+ * Es puro y no mantiene estado entre llamadas — el ID se calcula a partir
+ * del máximo numérico presente en los IDs existentes. La semilla 1000
+ * preserva la compatibilidad con el contador módulo-level anterior.
  */
-export function setStock(
-  products: Product[],
-  sku: string,
-  newStock: number,
-): Product[] {
-  const idx = products.findIndex((p) => p.sku === sku);
-  if (idx === -1) return products;
-  const current = products[idx];
-  const safeStock = Math.max(0, newStock);
-  const delta = safeStock - current.stockActual;
-  const movement = delta === 0 ? null : buildMovement(delta, "ajuste", "Edición manual");
-  const baseUpdated: Product = {
-    ...current,
-    stockActual: safeStock,
-    actualizadoEn: new Date().toISOString().slice(0, 10),
-  };
-  const updated = appendMovement(baseUpdated, movement);
-  const copy = products.slice();
-  copy[idx] = updated;
-  return copy;
+export function nextAuditId(existing: readonly AuditEntry[]): string {
+  const max = existing.reduce((m, e) => {
+    const n = parseInt(e.id.replace(/\D/g, ""), 10);
+    return Number.isFinite(n) ? Math.max(m, n) : m;
+  }, 1000);
+  return `a-${max + 1}`;
 }
 
-export function deleteProduct(products: Product[], sku: string): Product[] {
-  return products.filter((p) => p.sku !== sku);
+export function appendAudit(
+  state: StoredState,
+  entry: Omit<AuditEntry, "id" | "fecha"> & { fecha?: string },
+): StoredState {
+  const e: AuditEntry = {
+    id: nextAuditId(state.audit),
+    fecha: entry.fecha ?? nowIso(),
+    operario: entry.operario,
+    accion: entry.accion,
+    detalle: entry.detalle,
+    sku: entry.sku,
+  };
+  return { ...state, audit: [e, ...state.audit] };
+}
+
+// ---------------------------------------------------------------------------
+// Órdenes helpers
+// ---------------------------------------------------------------------------
+
+export function appendOrden(
+  state: StoredState,
+  orden: OrdenCompra,
+): StoredState {
+  return { ...state, ordenes: [orden, ...state.ordenes] };
+}
+
+export function updateOrden(
+  state: StoredState,
+  id: string,
+  patch: Partial<OrdenCompra>,
+): StoredState {
+  return {
+    ...state,
+    ordenes: state.ordenes.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+  };
 }

@@ -1,45 +1,96 @@
----
-// Static header shell. The search input + theme toggle are React islands
-// (see SearchBox.tsx and ThemeToggle.tsx) so they hydrate only where needed.
-//
+﻿---
+// Header shell. La búsqueda global y el selector de operario son
+// React islands (ver GlobalSearch.tsx y OperarioSelector.tsx).
 // Identidad Distribuidora El Faro: marca ocean, mono en la insignia,
 // densidad operativa (sin airy marketing).
-import SearchBox from "../components/SearchBox";
-import ThemeToggle from "../components/ThemeToggle";
+import GlobalSearch from "./GlobalSearch";
+import ThemeToggle from "./ThemeToggle";
+import OperarioSelector from "./OperarioSelector";
+import { OperarioProvider } from "./OperarioContext";
+
+const path = Astro.url.pathname;
+const isActive = (prefix: string) => {
+  if (prefix === "/") return path === "/";
+  return path === prefix || path.startsWith(prefix + "/") || path.startsWith(prefix + "?");
+};
 ---
 
-<header
-  class="sticky top-0 z-30 border-b border-[var(--color-line)] bg-[var(--color-canvas)]/85 backdrop-blur supports-[backdrop-filter]:bg-[var(--color-canvas)]/70"
->
-  <div
-    class="mx-auto flex w-full max-w-[1320px] items-center gap-3 px-4 py-2.5 sm:gap-6 sm:px-6 sm:py-3"
+<OperarioProvider client:load>
+  <header
+    class="sticky top-0 z-30 border-b border-[var(--color-line)] bg-[var(--color-canvas)]/85 backdrop-blur supports-[backdrop-filter]:bg-[var(--color-canvas)]/70"
   >
-    <a
-      href="/"
-      class="flex items-center gap-2.5 font-medium tracking-tight text-[var(--color-ink-900)]"
-      aria-label="Distribuidora del Sur — Inicio"
+    <div
+      class="mx-auto flex w-full max-w-[1320px] items-center gap-3 px-4 py-2.5 sm:gap-6 sm:px-6 sm:py-3"
     >
-      <span
-        class="grid h-7 w-7 place-items-center rounded-[4px] bg-[var(--color-ocean)] font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
-        aria-hidden="true"
+<a
+        href="/"
+        class="flex items-center gap-2.5 font-medium tracking-tight text-[var(--color-ink-900)]"
+        aria-label="Distribuidora El Faro — Inicio"
       >
-        DS
-      </span>
-      <span class="text-[14px] sm:text-[15px]">Distribuidora del Sur</span>
-      <span
-        class="hidden rounded-sm border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 py-[1px] font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--color-ink-500)] sm:inline"
-        >INV · v1</span
+        <span
+          class="grid h-7 w-7 place-items-center rounded-[4px] bg-[var(--color-ocean)] font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
+          aria-hidden="true"
+        >
+          EF
+        </span>
+        <span class="hidden text-[14px] sm:inline sm:text-[15px]">Distribuidora El Faro</span>
+        <span
+          class="hidden rounded-sm border border-[var(--color-line)] bg-[var(--color-surface)] px-1.5 py-[1px] font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--color-ink-500)] sm:inline"
+          >INV · v3</span
+        >
+      </a>
+
+      <nav
+        class="ml-2 hidden items-center gap-1 text-sm md:flex"
+        aria-label="Principal"
       >
-    </a>
+        <a
+          href="/"
+          class="nav-link"
+          aria-current={isActive("/") ? "page" : undefined}>Inventario</a>
+        <a
+          href="/categorias"
+          class="nav-link"
+          aria-current={isActive("/categorias") ? "page" : undefined}>Categorías</a>
+        <a
+          href="/movimientos"
+          class="nav-link"
+          aria-current={isActive("/movimientos") ? "page" : undefined}>Movimientos</a>
+        <a
+          href="/reportes"
+          class="nav-link"
+          aria-current={isActive("/reportes") ? "page" : undefined}>Reportes</a>
+        <a
+          href="/proveedores"
+          class="nav-link"
+          aria-current={isActive("/proveedores") ? "page" : undefined}>Proveedores</a>
+        <a
+          href="/auditoria"
+          class="nav-link"
+          aria-current={isActive("/auditoria") ? "page" : undefined}>Auditoría</a>
+      </nav>
 
-    <nav class="ml-2 hidden items-center gap-1 text-sm md:flex" aria-label="Principal">
-      <a href="/" class="nav-link" aria-current="page">Inventario</a>
-      <a href="/producto/nuevo" class="nav-link">Nuevo producto</a>
-    </nav>
-
-    <div class="ml-auto flex items-center gap-2 sm:gap-3">
-      <SearchBox client:load />
-      <ThemeToggle client:load />
+      <div class="ml-auto flex items-center gap-2 sm:gap-3">
+        <GlobalSearch client:load />
+        <OperarioSelector client:load />
+        <ThemeToggle client:load />
+      </div>
     </div>
-  </div>
-</header>
+
+    <!-- Secondary nav for mobile -->
+    <nav
+      class="md:hidden border-t border-[var(--color-line)] bg-[var(--color-canvas)]/90"
+      aria-label="Principal (móvil)"
+    >
+      <div class="mx-auto flex max-w-[1320px] gap-1 overflow-x-auto px-3 py-1 text-[12px]">
+        <a href="/" class="nav-link" aria-current={isActive("/") ? "page" : undefined}>Inventario</a>
+        <a href="/categorias" class="nav-link" aria-current={isActive("/categorias") ? "page" : undefined}>Categorías</a>
+        <a href="/movimientos" class="nav-link" aria-current={isActive("/movimientos") ? "page" : undefined}>Movimientos</a>
+        <a href="/reportes" class="nav-link" aria-current={isActive("/reportes") ? "page" : undefined}>Reportes</a>
+        <a href="/proveedores" class="nav-link" aria-current={isActive("/proveedores") ? "page" : undefined}>Proveedores</a>
+        <a href="/auditoria" class="nav-link" aria-current={isActive("/auditoria") ? "page" : undefined}>Auditoría</a>
+        <a href="/producto/nuevo" class="nav-link">+ Producto</a>
+      </div>
+    </nav>
+  </header>
+</OperarioProvider>

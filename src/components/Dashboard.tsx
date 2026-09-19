@@ -1,62 +1,58 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowClockwise,
   ArrowsDownUp,
   CaretDown,
-  CheckCircle,
+  CircleNotch,
   ClockCounterClockwise,
+  Coins,
+  Drop,
   FileCsv,
   Package,
   PencilSimple,
   Plus,
+  Timer,
   TrashSimple,
-  WarningCircle,
+  TrendUp,
+  Warning,
   X,
 } from "@phosphor-icons/react";
-import { SEED_PRODUCTS, type Category, type Product } from "../data/seed";
 import {
+  SEED_PRODUCTS,
+  type Category,
+  type Product,
+} from "../data/seed";
+import {
+  categoryMetrics,
   deriveKpis,
   formatArs,
   formatNum,
+  formatNumDec,
   formatPct,
-  statusLabel,
+  movimientosPorDia,
   statusOf,
+  topMovers,
   type Kpis,
 } from "../lib/inventory";
 import {
   adjustStock,
+  appendAudit,
   deleteProduct,
+  loadInitial,
   loadProducts,
+  replaceAll,
   resetToSeed,
   setStock,
-  writeState,
 } from "../lib/storage";
 import AlertsBanner from "./AlertsBanner";
 import CSVImporter from "./CSVImporter";
 import MovementHistory from "./MovementHistory";
+import StatusBadge from "./StatusBadge";
+import MovementsMiniChart from "./MovementsMiniChart";
+import { useOperario } from "./OperarioContext";
 
-// ---------------------------------------------------------------------------
-// Dashboard island
-//
-// Single client-loaded React island that owns:
-//   * the product list (loaded from / persisted to localStorage)
-//   * KPI derivation
-//   * filters (category, status, search) — search reads ?q= from the URL
-//   * the product table with inline +/- stock controls and quick-edit
-//   * a horizontal stock-progress bar per row (distintivo de la identidad)
-//   * a "reset to seed" action (clears localStorage)
-//
-// Identidad Distribuidora El Faro — operativa, densa, sin ornamento.
-// ---------------------------------------------------------------------------
+// Dashboard island — vista principal con KPIs densos, mini chart y top productos.
 
-/**
- * Calcula el ancho de la barra de stock (0–100) en función del umbral.
- *
- *   - Si stockMinimo === 0: producto no gestionado, barra llena en verde.
- *   - Si no: ratio = stockActual / stockMinimo, con tope en 100%.
- *     (Un producto al 300% del mínimo sigue mostrando 100% — el umbral es
- *      lo que importa para la alerta, no un techo arbitrario de inventario.)
- */
 function stockBarPct(stockActual: number, stockMinimo: number): number {
   if (stockMinimo <= 0) return 100;
   if (stockActual <= 0) return 0;
@@ -71,6 +67,9 @@ const CATEGORY_OPTIONS: { value: Category | "Todas"; label: string }[] = [
   { value: "Legumbres", label: "Legumbres" },
   { value: "Conservas", label: "Conservas" },
   { value: "Condimentos", label: "Condimentos" },
+  { value: "Snacks", label: "Snacks" },
+  { value: "Bebidas", label: "Bebidas" },
+  { value: "Lácteos", label: "Lácteos" },
 ];
 
 const STATUS_OPTIONS: { value: "todos" | "ok" | "bajo" | "critico"; label: string }[] = [
@@ -83,29 +82,30 @@ const STATUS_OPTIONS: { value: "todos" | "ok" | "bajo" | "critico"; label: strin
 type SortKey = "nombre" | "categoria" | "stockActual" | "estado" | "actualizadoEn";
 type SortDir = "asc" | "desc";
 
+const PAGE_SIZE = 14;
+
 export default function Dashboard() {
+  const { active } = useOperario();
   const [hydrated, setHydrated] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [categoria, setCategoria] = useState<Category | "Todas">("Todas");
-  const [estado, setEstado] = useState<"todos" | "ok" | "bajo" | "critico">(
-    "todos",
-  );
+  const [estado, setEstado] = useState<"todos" | "ok" | "bajo" | "critico">("todos");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("estado");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [page, setPage] = useState(0);
   const [confirmReset, setConfirmReset] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
-  const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [setStockTarget, setSetStockTarget] = useState<Product | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
 
-  // ----- Hydrate from localStorage on mount -------------------------------
   useEffect(() => {
     setProducts(loadProducts());
     setHydrated(true);
   }, []);
 
-  // ----- Read ?q= from URL on mount and on history change -----------------
   useEffect(() => {
     if (!hydrated) return;
     function read() {
@@ -117,589 +117,573 @@ export default function Dashboard() {
     return () => window.removeEventListener("popstate", read);
   }, [hydrated]);
 
-  // ----- Persist any change -----------------------------------------------
-  useEffect(() => {
-    if (!hydrated) return;
-    writeState(products);
-  }, [products, hydrated]);
-
-  // ----- Toast helper -----------------------------------------------------
   const flash = useCallback((msg: string) => {
     setToast(msg);
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 2400);
   }, []);
 
-  // ----- Filter + sort ----------------------------------------------------
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((p) => {
       if (categoria !== "Todas" && p.categoria !== categoria) return false;
-      const s = statusOf(p);
-      if (estado !== "todos" && s !== estado) return false;
-      if (q && !p.nombre.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q))
-        return false;
-      return true;
+      if (estado !== "todos" && statusOf(p) !== estado) return false;
+      if (!q) return true;
+      return (
+        p.sku.toLowerCase().includes(q) ||
+        p.nombre.toLowerCase().includes(q) ||
+        p.categoria.toLowerCase().includes(q)
+      );
     });
   }, [products, categoria, estado, query]);
 
   const sorted = useMemo(() => {
-    const copy = filtered.slice();
-    const statusRank = { critico: 0, bajo: 1, ok: 2 } as const;
-    copy.sort((a, b) => {
+    const arr = filtered.slice();
+    arr.sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
-        case "nombre":
-          cmp = a.nombre.localeCompare(b.nombre, "es");
+        case "nombre": cmp = a.nombre.localeCompare(b.nombre, "es"); break;
+        case "categoria": cmp = a.categoria.localeCompare(b.categoria, "es"); break;
+        case "stockActual": cmp = a.stockActual - b.stockActual; break;
+        case "estado": {
+          const order = { critico: 0, bajo: 1, ok: 2 } as const;
+          cmp = order[statusOf(a)] - order[statusOf(b)];
           break;
-        case "categoria":
-          cmp = a.categoria.localeCompare(b.categoria, "es");
-          break;
-        case "stockActual":
-          cmp = a.stockActual - b.stockActual;
-          break;
-        case "estado":
-          cmp = statusRank[statusOf(a)] - statusRank[statusOf(b)];
-          break;
-        case "actualizadoEn":
-          cmp = a.actualizadoEn.localeCompare(b.actualizadoEn);
-          break;
+        }
+        case "actualizadoEn": cmp = a.actualizadoEn.localeCompare(b.actualizadoEn); break;
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
-    return copy;
+    return arr;
   }, [filtered, sortKey, sortDir]);
 
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
+  useEffect(() => { setPage(0); }, [categoria, estado, query]);
+
   const kpis: Kpis = useMemo(() => deriveKpis(products), [products]);
+  const miniData = useMemo(() => movimientosPorDia(products, 30), [products]);
+  const movers = useMemo(() => topMovers(products, 5), [products]);
+  const categoriasTop = useMemo(() => categoryMetrics(products).slice(0, 3), [products]);
 
-  // ----- Mutations --------------------------------------------------------
-  const onAdjust = useCallback(
-    (sku: string, delta: number) => {
-      setProducts((prev) => adjustStock(prev, sku, delta));
-    },
-    [],
-  );
-
-  const onSetStock = useCallback((sku: string, value: number) => {
-    setProducts((prev) => setStock(prev, sku, value));
-  }, []);
-
-  const onDelete = useCallback(
-    (sku: string) => {
-      const p = products.find((x) => x.sku === sku);
-      if (!p) return;
-      const ok = window.confirm(`Eliminar "${p.nombre}" (${p.sku})?`);
-      if (!ok) return;
-      setProducts((prev) => deleteProduct(prev, sku));
-      flash(`Producto eliminado: ${p.sku}`);
-    },
-    [products, flash],
-  );
-
-  const onReset = useCallback(() => {
-    setProducts(resetToSeed());
-    setConfirmReset(false);
-    flash("Catálogo restablecido al estado inicial");
-  }, [flash]);
-
-  // ----- CSV import -------------------------------------------------------
-  const onImportCsv = useCallback(
-    (imported: Product[]) => {
-      setProducts((prev) => [...prev, ...imported]);
-      setCsvOpen(false);
+function onAdjust(sku: string, delta: number) {
+    if (!active) return;
+    const target = products.find((p) => p.sku === sku);
+    setProducts((arr) => {
+      const next = adjustStock(arr, sku, delta, active.nombre);
       flash(
-        `${formatNum(imported.length)} producto${imported.length === 1 ? "" : "s"} importado${imported.length === 1 ? "" : "s"}`,
+        delta > 0
+          ? `Sumaste ${delta} ${target?.unidad ?? ""}`
+          : `Restaste ${Math.abs(delta)} ${target?.unidad ?? ""}`,
       );
-    },
-    [flash],
-  );
-
-  // ----- Filter by alert / history ----------------------------------------
-  const focusProduct = useCallback((sku: string) => {
-    // Filtra la tabla al producto clickeado. Resetea los demás filtros
-    // para que el resultado sea predecible.
-    setCategoria("Todas");
-    setEstado("todos");
-    setQuery(sku);
-  }, []);
-
-  const openHistory = useCallback((product: Product) => {
-    setHistoryProduct(product);
-  }, []);
-
-  const closeHistory = useCallback(() => {
-    setHistoryProduct(null);
-  }, []);
-
-  function changeSort(key: SortKey) {
-    if (key === sortKey) setSortDir(sortDir === "asc" ? "desc" : "asc");
-    else {
-      setSortKey(key);
-      setSortDir(key === "estado" ? "asc" : "asc");
-    }
+      return next;
+    });
+    const cur = loadInitial();
+    const nextProducts = adjustStock(cur.products, sku, delta, active.nombre);
+    const updated = appendAudit({ ...cur, products: nextProducts }, {
+      operario: active.nombre,
+      accion: "stock_adjust",
+      detalle: `${delta > 0 ? "Sumó" : "Restó"} ${Math.abs(delta)} ${target?.unidad ?? ""} de ${target?.nombre ?? sku} (${sku})`,
+      sku,
+    });
+    replaceAll({ products: nextProducts, audit: updated.audit });
   }
 
-  // ----- Render -----------------------------------------------------------
-  return (
-    <div className="space-y-6 sm:space-y-8">
-      {/* Header strip */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="eyebrow">Panel principal</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--color-ink-900)] sm:text-[28px]">
-            Inventario
-          </h1>
-          <p className="mt-1 text-sm text-[var(--color-ink-700)]">
-            Stock actual por SKU. Las alertas se disparan al alcanzar el umbral
-            configurado por producto.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href="/producto/nuevo"
-            className="btn-base h-9 bg-[var(--color-ocean)] px-3 text-sm text-white hover:bg-[var(--color-ocean-deep)]"
-          >
-            <Plus size={14} weight="bold" aria-hidden="true" />
-            Nuevo producto
-          </a>
-          <button
-            type="button"
-            onClick={() => setCsvOpen(true)}
-            className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
-          >
-            <FileCsv size={14} weight="bold" aria-hidden="true" />
-            Importar desde Excel/CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmReset(true)}
-            className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
-          >
-            <ArrowClockwise size={14} weight="bold" aria-hidden="true" />
-            Restablecer
-          </button>
-        </div>
+  function onSetStock(sku: string, value: number) {
+    if (!active) return;
+    const target = products.find((p) => p.sku === sku);
+    setProducts((arr) => setStock(arr, sku, value, active.nombre));
+    const cur = loadInitial();
+    const nextProducts = setStock(cur.products, sku, value, active.nombre);
+    const updated = appendAudit({ ...cur, products: nextProducts }, {
+      operario: active.nombre,
+      accion: "stock_set",
+      detalle: `Fijó stock de ${target?.nombre ?? sku} (${sku}) en ${value} ${target?.unidad ?? ""}`,
+      sku,
+    });
+    replaceAll({ products: nextProducts, audit: updated.audit });
+    flash(`Stock fijado en ${value}`);
+  }
+
+  function openSetStockModal(p: Product) {
+    setSetStockTarget(p);
+  }
+
+  function applySetStock(value: number) {
+    if (!setStockTarget) return;
+    if (!Number.isFinite(value) || value < 0) {
+      flash("Stock inválido");
+      return;
+    }
+    onSetStock(setStockTarget.sku, Math.floor(value));
+    setSetStockTarget(null);
+  }
+
+  function onDelete(sku: string) {
+    if (!active) return;
+    const target = products.find((p) => p.sku === sku);
+    setProducts((arr) => deleteProduct(arr, sku));
+    const cur = loadInitial();
+    const nextProducts = cur.products.filter((p) => p.sku !== sku);
+    const updated = appendAudit({ ...cur, products: nextProducts }, {
+      operario: active.nombre,
+      accion: "eliminacion_producto",
+      detalle: `Eliminó producto ${target?.nombre ?? sku} (${sku})`,
+      sku,
+    });
+    replaceAll({ products: nextProducts, audit: updated.audit });
+    flash(`Eliminado ${target?.nombre ?? sku}`);
+  }
+
+  function onReset() {
+    const seeded = resetToSeed();
+    setProducts(seeded.products);
+    setConfirmReset(false);
+    const cur = loadInitial();
+    const updated = appendAudit({ ...cur, products: seeded.products, audit: seeded.audit }, {
+      operario: active?.nombre ?? "Sistema",
+      accion: "stock_reset",
+      detalle: `Restableció el catálogo al estado seed (${seeded.products.length} productos)`,
+    });
+    replaceAll({ products: seeded.products, audit: updated.audit });
+    flash("Catálogo restablecido");
+  }
+
+  function onCsvImport(rows: Product[]) {
+    setProducts((arr) => {
+      const map = new Map(arr.map((p) => [p.sku, p]));
+      for (const r of rows) map.set(r.sku, r);
+      return Array.from(map.values());
+    });
+    if (active) {
+      const cur = loadInitial();
+      const map = new Map(cur.products.map((p) => [p.sku, p]));
+      for (const r of rows) map.set(r.sku, r);
+      const merged = Array.from(map.values());
+      const updated = appendAudit({ ...cur, products: merged }, {
+        operario: active.nombre,
+        accion: "importacion_csv",
+        detalle: `Importó ${rows.length} productos desde CSV`,
+      });
+      replaceAll({ products: merged, audit: updated.audit });
+    }
+    setCsvOpen(false);
+    flash(`${rows.length} productos importados`);
+  }
+
+  if (!hydrated) {
+    return (
+      <div className="grid place-items-center py-20 text-[var(--color-ink-500)]">
+        <CircleNotch size={20} weight="bold" className="animate-spin" aria-hidden="true" />
       </div>
+    );
+  }
 
-      {/* Alerts banner — auto-detectado, sin config manual */}
-      <AlertsBanner products={products} onSelectProduct={focusProduct} />
+  const totalEntradas30 = miniData.reduce((acc, d) => acc + d.entradas, 0);
+  const totalSalidas30 = miniData.reduce((acc, d) => acc + d.salidas, 0);
 
-      {/* KPI strip */}
-      <KpiStrip kpis={kpis} />
-
-      {/* Filters */}
-      <section
-        aria-label="Filtros"
-        className="rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] p-4 sm:p-5"
-      >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_220px_220px]">
+  return (
+    <div className="flex flex-col gap-5">
+      <section aria-label="Resumen operativo" className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <label
-              htmlFor="f-q"
-              className="mb-1.5 block text-xs font-medium text-[var(--color-ink-700)]"
-            >
-              Buscar
-            </label>
-            <div className="relative">
-              <input
-                id="f-q"
-                type="search"
-                placeholder="SKU o nombre"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] placeholder:text-[var(--color-ink-500)] focus:border-[var(--color-focus)] focus:outline-none"
-              />
-            </div>
+            <p className="eyebrow">Distribuidora El Faro</p>
+            <h1 className="mt-1 text-[20px] font-semibold tracking-tight">Panel de inventario</h1>
+            <p className="text-[12px] text-[var(--color-ink-500)]">
+              {products.length} SKUs · {kpis.totalCategorias} categorías · datos en este navegador
+            </p>
           </div>
-
-          <FilterSelect<Category | "Todas">
-            id="f-cat"
-            label="Categoría"
-            value={categoria}
-            onChange={(v) => setCategoria(v)}
-            options={CATEGORY_OPTIONS}
-          />
-          <FilterSelect<"todos" | "ok" | "bajo" | "critico">
-            id="f-status"
-            label="Estado"
-            value={estado}
-            onChange={(v) => setEstado(v)}
-            options={STATUS_OPTIONS}
-          />
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-line)] pt-3 text-xs text-[var(--color-ink-500)]">
-          <p>
-            Mostrando{" "}
-            <span className="font-mono text-[var(--color-ink-900)]">
-              {sorted.length}
-            </span>{" "}
-            de{" "}
-            <span className="font-mono text-[var(--color-ink-900)]">
-              {products.length}
-            </span>{" "}
-            productos
-          </p>
-          {query || categoria !== "Todas" || estado !== "todos" ? (
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                setCategoria("Todas");
-                setEstado("todos");
-                setQuery("");
-                const url = new URL(window.location.href);
-                url.searchParams.delete("q");
-                window.history.replaceState({}, "", url.pathname + (url.search || ""));
-              }}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
+              onClick={() => setCsvOpen(true)}
+              className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-[12.5px] hover:bg-[var(--color-surface-muted)]"
             >
-              <X size={12} weight="bold" aria-hidden="true" />
-              Limpiar filtros
+              <FileCsv size={14} weight="bold" aria-hidden="true" />
+              Importar CSV
             </button>
-          ) : null}
+            <a
+              href="/producto/nuevo"
+              className="btn-base h-9 bg-[var(--color-ocean)] px-3 text-[12.5px] font-medium text-white hover:bg-[var(--color-ocean-deep)]"
+            >
+              <Plus size={14} weight="bold" aria-hidden="true" />
+              Nuevo producto
+            </a>
+            <button
+              type="button"
+              onClick={() => setConfirmReset(true)}
+              className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-[12.5px] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
+              aria-label="Restablecer catálogo al estado inicial"
+            >
+              <ArrowClockwise size={14} weight="bold" aria-hidden="true" />
+              Restablecer
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+          <KpiCard label="Productos" value={formatNum(kpis.totalProductos)} icon={<Package size={12} weight="bold" aria-hidden="true" />} tone="ink" />
+          <KpiCard label="Categorías" value={formatNum(kpis.totalCategorias)} icon={<Package size={12} weight="bold" aria-hidden="true" />} tone="ink" />
+          <KpiCard label="Bajo stock" value={formatNum(kpis.bajoStockCount)} hint={`${formatPct(kpis.bajoStockPct / 100)} del total`} icon={<Warning size={12} weight="bold" aria-hidden="true" />} tone="warn" />
+          <KpiCard label="Críticos" value={formatNum(kpis.criticoCount)} icon={<Warning size={12} weight="bold" aria-hidden="true" />} tone="bad" />
+          <KpiCard label="Valor inventario" value={formatArs(kpis.valorInventario)} icon={<Coins size={12} weight="bold" aria-hidden="true" />} tone="ink" />
+          <KpiCard label="Rotación 30d" value={`${formatNumDec(kpis.rotacionPromedio * 100)}%`} hint="salidas / stock" icon={<TrendUp size={12} weight="bold" aria-hidden="true" />} tone="ocean" />
+          <KpiCard label="Días sin venta" value={formatNumDec(kpis.diasSinVentaProm)} hint="promedio" icon={<Timer size={12} weight="bold" aria-hidden="true" />} tone="ink" />
+          <KpiCard label="Top categoría" value={kpis.topCategoria} hint={formatArs(kpis.valorTopCategoria)} icon={<Drop size={12} weight="bold" aria-hidden="true" />} tone="ocean" />
         </div>
       </section>
 
-      {/* Table */}
-      <section
-        aria-label="Listado de productos"
-        className="overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-surface)]"
-      >
+      <AlertsBanner
+        products={products}
+        onSelectProduct={(sku) => {
+          const p = products.find((x) => x.sku === sku);
+          if (p) setHistoryProduct(p);
+        }}
+      />
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] lg:col-span-2">
+          <header className="flex items-center justify-between border-b border-[var(--color-line)] px-4 py-2.5">
+            <h2 className="flex items-center gap-2 text-[13px] font-semibold">
+              <ArrowsDownUp size={14} weight="bold" aria-hidden="true" className="text-[var(--color-ocean)]" />
+              Movimientos · últimos 30 días
+            </h2>
+            <p className="mono text-[11px] text-[var(--color-ink-500)]">
+              +{formatNum(totalEntradas30)} entradas · −{formatNum(totalSalidas30)} salidas
+            </p>
+          </header>
+          <div className="px-3 pb-3 pt-2">
+            <MovementsMiniChart data={miniData} />
+          </div>
+        </section>
+
+        <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-surface)]">
+          <header className="flex items-center justify-between border-b border-[var(--color-line)] px-4 py-2.5">
+            <h2 className="flex items-center gap-2 text-[13px] font-semibold">
+              <TrendUp size={14} weight="bold" aria-hidden="true" className="text-[var(--color-ocean)]" />
+              Top 5 más movidos
+            </h2>
+            <p className="mono text-[11px] text-[var(--color-ink-500)]">últimos 30 días</p>
+          </header>
+          <ol className="divide-y divide-[var(--color-line)]">
+            {movers.map((m, i) => (
+              <li key={m.sku} className="flex items-center gap-3 px-4 py-2 text-[12.5px]">
+                <span className="mono grid h-5 w-5 place-items-center rounded-sm bg-[var(--color-ocean-soft)] text-[var(--color-ocean)]">
+                  {i + 1}
+                </span>
+                <a href={`/producto/${encodeURIComponent(m.sku)}`} className="min-w-0 flex-1 truncate hover:text-[var(--color-ocean)]">
+                  {m.nombre}
+                </a>
+                <span className="mono text-[10.5px] text-[var(--color-ink-500)]">{m.totalMovimientos} mov</span>
+                <span className="mono text-[10.5px] text-[var(--color-status-ok)]">+{formatNum(m.entradas30d)}</span>
+                <span className="mono text-[10.5px] text-[var(--color-status-bad)]">−{formatNum(m.ventas30d)}</span>
+              </li>
+            ))}
+            {movers.length === 0 ? (
+              <li className="px-4 py-6 text-center text-[12px] text-[var(--color-ink-500)]">
+                Sin movimientos registrados.
+              </li>
+            ) : null}
+          </ol>
+          <footer className="border-t border-[var(--color-line)] px-4 py-2 text-[10.5px] uppercase tracking-[0.08em] text-[var(--color-ink-500)]">
+            Top categorías
+          </footer>
+          <ul className="divide-y divide-[var(--color-line)]">
+            {categoriasTop.map((c) => (
+              <li key={c.categoria} className="flex items-center gap-2 px-4 py-2 text-[12px]">
+                <span className="font-medium text-[var(--color-ink-900)]">{c.categoria}</span>
+                <span className="ml-auto mono text-[var(--color-ink-700)]">{formatArs(c.valor)}</span>
+                <span className="mono text-[10.5px] text-[var(--color-ink-500)]">{c.pctValor.toFixed(0)}%</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+
+      <section className="rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] p-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Buscar">
+            <div className="relative">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-ink-500)]">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="SKU, nombre o categoría"
+                className="h-9 w-[240px] rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] pl-8 pr-2 text-[12.5px] focus:border-[var(--color-focus)] focus:outline-none"
+              />
+            </div>
+          </Field>
+          <Field label="Categoría">
+            <select
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value as Category | "Todas")}
+              className="h-9 w-[200px] rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-[12.5px] focus:border-[var(--color-focus)] focus:outline-none"
+            >
+              {CATEGORY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Estado">
+            <select
+              value={estado}
+              onChange={(e) => setEstado(e.target.value as "todos" | "ok" | "bajo" | "critico")}
+              className="h-9 w-[180px] rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-[12.5px] focus:border-[var(--color-focus)] focus:outline-none"
+            >
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Ordenar por">
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
+              className="h-9 w-[180px] rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-[12.5px] focus:border-[var(--color-focus)] focus:outline-none"
+            >
+              <option value="estado">Estado (crítico primero)</option>
+              <option value="nombre">Nombre</option>
+              <option value="categoria">Categoría</option>
+              <option value="stockActual">Stock actual</option>
+              <option value="actualizadoEn">Actualizado</option>
+            </select>
+          </Field>
+          <button
+            type="button"
+            onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+            aria-label="Cambiar dirección de orden"
+            className="btn-base grid h-9 w-9 place-items-center border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
+          >
+            <CaretDown size={14} weight="bold" aria-hidden="true" style={{ transform: sortDir === "asc" ? "rotate(180deg)" : "none", transition: "transform 120ms" }} />
+          </button>
+          <p className="mono ml-auto text-[11px] text-[var(--color-ink-500)]">
+            {formatNum(sorted.length)} resultado{sorted.length === 1 ? "" : "s"}
+          </p>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-surface)]">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[var(--color-line)] bg-[var(--color-surface-muted)] text-left text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--color-ink-500)]">
-                <Th onClick={() => changeSort("nombre")} active={sortKey === "nombre"} dir={sortDir}>
-                  Producto
-                </Th>
-                <Th
-                  onClick={() => changeSort("categoria")}
-                  active={sortKey === "categoria"}
-                  dir={sortDir}
-                  hideOnMobile
-                >
-                  Categoría
-                </Th>
-                <Th
-                  onClick={() => changeSort("stockActual")}
-                  active={sortKey === "stockActual"}
-                  dir={sortDir}
-                  align="right"
-                >
-                  Stock
-                </Th>
-                <Th align="right" hideOnMobile>
-                  Mínimo
-                </Th>
-                <Th align="right" hideOnMobile>
-                  Precio
-                </Th>
-                <Th
-                  onClick={() => changeSort("estado")}
-                  active={sortKey === "estado"}
-                  dir={sortDir}
-                >
-                  Estado
-                </Th>
-                <Th align="right">Acciones</Th>
+              <tr className="border-b border-[var(--color-line)] bg-[var(--color-surface-muted)] text-[10.5px] uppercase tracking-[0.08em] text-[var(--color-ink-500)]">
+                <th scope="col" className="px-3 py-2 font-medium">SKU</th>
+                <th scope="col" className="px-3 py-2 font-medium">Producto</th>
+                <th scope="col" className="hidden px-3 py-2 font-medium sm:table-cell">Categoría</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Stock</th>
+                <th scope="col" className="hidden px-3 py-2 text-right font-medium sm:table-cell">Mín.</th>
+                <th scope="col" className="hidden px-3 py-2 text-right font-medium sm:table-cell">Precio</th>
+                <th scope="col" className="px-3 py-2 font-medium">Estado</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--color-line)] dense-row">
-              {!hydrated ? (
+            <tbody>
+              {pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-[var(--color-ink-500)]">
-                    <span className="mono text-[11px] uppercase tracking-[0.12em]">
-                      Cargando catálogo…
-                    </span>
-                  </td>
-                </tr>
-              ) : sorted.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-3 py-10 text-center">
-                    <p className="text-sm text-[var(--color-ink-700)]">
-                      No hay productos que coincidan con los filtros aplicados.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCategoria("Todas");
-                        setEstado("todos");
-                        setQuery("");
-                      }}
-                      className="btn-base mt-3 h-8 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-xs text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
-                    >
-                      Limpiar filtros
-                    </button>
+                  <td colSpan={8} className="px-3 py-12 text-center text-sm text-[var(--color-ink-500)]">
+                    Sin productos para los filtros aplicados.
                   </td>
                 </tr>
               ) : (
-                sorted.map((p) => (
+pageRows.map((p) => (
                   <ProductRow
                     key={p.sku}
                     product={p}
                     onAdjust={onAdjust}
                     onSetStock={onSetStock}
+                    onRequestSetStock={openSetStockModal}
+                    onOpenHistory={(pr) => setHistoryProduct(pr)}
                     onDelete={onDelete}
-                    onOpenHistory={openHistory}
-                    flash={flash}
                   />
                 ))
               )}
             </tbody>
           </table>
         </div>
+        <footer className="flex flex-col items-start justify-between gap-2 border-t border-[var(--color-line)] px-4 py-3 text-[12px] text-[var(--color-ink-500)] sm:flex-row sm:items-center">
+          <span>
+            Mostrando{" "}
+            <span className="mono font-medium text-[var(--color-ink-700)]">
+              {sorted.length === 0 ? 0 : safePage * PAGE_SIZE + 1}–
+              {Math.min((safePage + 1) * PAGE_SIZE, sorted.length)}
+            </span>{" "}
+            de <span className="mono">{sorted.length}</span>
+            {pageCount > 1 ? (
+              <>
+                {" · pág "}
+                <span className="mono">{safePage + 1}</span>
+                <span className="text-[var(--color-ink-300)]">/</span>
+                <span className="mono">{pageCount}</span>
+              </>
+            ) : null}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Página anterior"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              disabled={safePage >= pageCount - 1}
+              className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Página siguiente"
+            >
+              ›
+            </button>
+          </div>
+        </footer>
       </section>
 
-      {/* Reset confirm modal */}
-      {confirmReset ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="reset-title"
-          className="fixed inset-0 z-40 grid place-items-center bg-[var(--color-ink-900)]/50 p-4"
-        >
-          <div className="w-full max-w-sm rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] p-5 shadow-xl">
-            <h2
-              id="reset-title"
-              className="text-base font-semibold text-[var(--color-ink-900)]"
-            >
-              Restablecer el catálogo
-            </h2>
-            <p className="mt-2 text-sm text-[var(--color-ink-700)]">
-              Esta acción reemplaza todos los productos en este navegador por el
-              catálogo inicial. No se puede deshacer.
+      {historyProduct ? (
+        <ModalShell title={`Historial · ${historyProduct.nombre}`} onClose={() => setHistoryProduct(null)}>
+          <MovementHistory
+            product={historyProduct}
+            onClose={() => setHistoryProduct(null)}
+            onAddMovement={(m) => {
+              if (!active) return;
+              setProducts((arr) => {
+                const idx = arr.findIndex((p) => p.sku === historyProduct.sku);
+                if (idx === -1) return arr;
+                const copy = arr.slice();
+                const cur = copy[idx];
+                copy[idx] = {
+                  ...cur,
+                  stockActual: Math.max(0, cur.stockActual + m.cantidad),
+                  actualizadoEn: new Date().toISOString().slice(0, 10),
+                  movimientos: [
+                    ...(cur.movimientos ?? []),
+                    {
+                      fecha: new Date().toISOString(),
+                      tipo: m.tipo,
+                      cantidad: m.cantidad,
+                      motivo: m.motivo,
+                      usuario: active.nombre,
+                    },
+                  ],
+                };
+                return copy;
+              });
+              flash(`Movimiento registrado por ${active.nombre}`);
+            }}
+          />
+        </ModalShell>
+      ) : null}
+
+      {csvOpen ? (
+        <ModalShell title="Importar productos desde CSV" onClose={() => setCsvOpen(false)}>
+          <CSVImporter
+            open={csvOpen}
+            existingProducts={products}
+            onClose={() => setCsvOpen(false)}
+            onImport={(rows) => onCsvImport(rows)}
+          />
+        </ModalShell>
+      ) : null}
+
+{confirmReset ? (
+        <ModalShell title="Restablecer catálogo" onClose={() => setConfirmReset(false)}>
+          <div className="flex flex-col gap-3 text-[13px] text-[var(--color-ink-700)]">
+            <p>
+              Vas a perder todos los cambios del catálogo y volver al seed
+              original ({SEED_PRODUCTS.length} productos).
             </p>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmReset(false)}
-                className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
+                className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-[12.5px] hover:bg-[var(--color-surface-muted)]"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={onReset}
-                className="btn-base h-9 bg-[var(--color-status-bad)] px-3 text-sm font-medium text-white hover:opacity-90"
+                className="btn-base h-9 bg-[var(--color-status-bad)] px-3 text-[12.5px] font-medium text-white hover:opacity-90"
               >
-                Sí, restablecer
+                Confirmar
               </button>
             </div>
           </div>
-        </div>
+        </ModalShell>
       ) : null}
 
-      {/* Toast */}
+      {setStockTarget ? (
+        <ModalShell
+          title={`Fijar stock · ${setStockTarget.nombre}`}
+          onClose={() => setSetStockTarget(null)}
+        >
+          <SetStockForm
+            product={setStockTarget}
+            onCancel={() => setSetStockTarget(null)}
+            onApply={applySetStock}
+          />
+        </ModalShell>
+      ) : null}
+
       {toast ? (
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-ink-900)] shadow-lg"
+          className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-2 text-[12.5px] text-[var(--color-ink-700)] shadow-lg"
         >
           {toast}
         </div>
       ) : null}
-
-      {/* CSV importer modal */}
-      <CSVImporter
-        open={csvOpen}
-        existingProducts={products}
-        onClose={() => setCsvOpen(false)}
-        onImport={onImportCsv}
-      />
-
-      {/* Movement history drawer */}
-      <MovementHistory
-        open={historyProduct !== null}
-        product={historyProduct}
-        onClose={closeHistory}
-      />
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Subcomponents
-// ---------------------------------------------------------------------------
-
-function KpiStrip({ kpis }: { kpis: Kpis }) {
-  return (
-    <section
-      aria-label="Indicadores"
-      className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-4"
-    >
-      <Kpi
-        icon={<Package size={15} weight="bold" aria-hidden="true" />}
-        label="Productos"
-        value={formatNum(kpis.totalProductos)}
-        sub={`${formatNum(kpis.totalCategorias)} categorías`}
-      />
-      <Kpi
-        icon={
-          <WarningCircle
-            size={15}
-            weight="bold"
-            aria-hidden="true"
-            style={{ color: "var(--color-status-warn)" }}
-          />
-        }
-        label="Bajo stock"
-        value={formatNum(kpis.bajoStockCount)}
-        sub={formatPct(kpis.bajoStockPct / 100)}
-        tone={kpis.bajoStockCount > 0 ? "warn" : "neutral"}
-      />
-      <Kpi
-        icon={
-          <WarningCircle
-            size={15}
-            weight="bold"
-            aria-hidden="true"
-            style={{ color: "var(--color-status-bad)" }}
-          />
-        }
-        label="Críticos"
-        value={formatNum(kpis.criticoCount)}
-        sub={
-          kpis.criticoCount > 0
-            ? "Reposición urgente"
-            : "Sin alertas críticas"
-        }
-        tone={kpis.criticoCount > 0 ? "bad" : "neutral"}
-      />
-      <Kpi
-        icon={<ArrowsDownUp size={15} weight="bold" aria-hidden="true" />}
-        label="Valor estimado"
-        value={formatArs(kpis.valorInventario)}
-        sub="Stock × precio unitario"
-      />
-    </section>
-  );
-}
-
-function Kpi({
+function KpiCard({
+  label,
+  value,
+  hint,
   icon,
-  label,
-  value,
-  sub,
-  tone = "neutral",
+  tone,
 }: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
   icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-  tone?: "neutral" | "warn" | "bad";
+  tone: "ink" | "warn" | "bad" | "ocean";
 }) {
-  const valueClass =
+  const accent =
     tone === "bad"
-      ? "text-[var(--color-status-bad)]"
+      ? "var(--color-status-bad)"
       : tone === "warn"
-        ? "text-[var(--color-status-warn)]"
-        : "text-[var(--color-ink-900)]";
+        ? "var(--color-alert)"
+        : tone === "ocean"
+          ? "var(--color-ocean)"
+          : "var(--color-ink-700)";
   return (
-    <div className="kpi-tile flex flex-col gap-1.5 bg-[var(--color-surface)] p-4">
-      <div className="flex items-center gap-2 text-[var(--color-ink-500)]">
-        {icon}
-        <span className="text-[10.5px] font-medium uppercase tracking-[0.1em]">
-          {label}
-        </span>
-      </div>
-      <p
-        className={`mono text-[22px] font-semibold leading-none tracking-tight ${valueClass}`}
-      >
-        {value}
-      </p>
-      <p className="text-xs text-[var(--color-ink-500)]">{sub}</p>
-    </div>
-  );
-}
-
-function Th({
-  children,
-  onClick,
-  active,
-  dir,
-  align = "left",
-  hideOnMobile = false,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  active?: boolean;
-  dir?: SortDir;
-  align?: "left" | "right";
-  hideOnMobile?: boolean;
-}) {
-  const alignClass = align === "right" ? "text-right" : "text-left";
-  const mobileClass = hideOnMobile ? "hidden sm:table-cell" : "";
-  if (!onClick) {
-    return (
-      <th
-        scope="col"
-        className={`${alignClass} ${mobileClass} px-3 py-2 font-medium`}
-      >
-        {children}
-      </th>
-    );
-  }
-  return (
-    <th
-      scope="col"
-      className={`${alignClass} ${mobileClass} px-3 py-1.5 font-medium`}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        className={`inline-flex items-center gap-1 rounded-sm transition-colors hover:text-[var(--color-ink-900)] ${
-          active ? "text-[var(--color-ocean)]" : ""
-        }`}
-      >
-        {children}
-        <CaretDown
-          size={10}
-          weight="bold"
-          aria-hidden="true"
-          className={`transition-transform ${
-            active && dir === "desc" ? "rotate-180" : ""
-          }`}
-        />
-      </button>
-    </th>
-  );
-}
-
-function FilterSelect<T extends string>({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  id: string;
-  label: string;
-  value: T;
-  onChange: (v: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  return (
-    <div>
-      <label
-        htmlFor={id}
-        className="mb-1.5 block text-xs font-medium text-[var(--color-ink-700)]"
-      >
+    <div className="kpi-tile rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] p-3">
+      <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--color-ink-500)]">
+        <span style={{ color: accent }}>{icon}</span>
         {label}
-      </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-        className="h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-ink-900)] focus:border-[var(--color-focus)] focus:outline-none"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+      </p>
+      <p className="mono mt-1 text-[16px] font-semibold leading-tight text-[var(--color-ink-900)]">{value}</p>
+      {hint ? <p className="mt-0.5 text-[10.5px] text-[var(--color-ink-500)]">{hint}</p> : null}
     </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--color-ink-500)]">{label}</span>
+      {children}
+    </label>
   );
 }
 
@@ -707,148 +691,63 @@ function ProductRow({
   product,
   onAdjust,
   onSetStock,
-  onDelete,
+  onRequestSetStock,
   onOpenHistory,
-  flash,
+  onDelete,
 }: {
   product: Product;
   onAdjust: (sku: string, delta: number) => void;
   onSetStock: (sku: string, value: number) => void;
+  onRequestSetStock: (p: Product) => void;
+  onOpenHistory: (p: Product) => void;
   onDelete: (sku: string) => void;
-  onOpenHistory: (product: Product) => void;
-  flash: (msg: string) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(product.stockActual));
   const status = statusOf(product);
-  const movCount = (product.movimientos ?? []).length;
-
-  useEffect(() => {
-    setDraft(String(product.stockActual));
-  }, [product.stockActual]);
-
-  function commit() {
-    const n = Number(draft);
-    if (!Number.isFinite(n) || n < 0) {
-      flash("Valor inválido — no se aplicó el cambio");
-      setDraft(String(product.stockActual));
-      setEditing(false);
-      return;
-    }
-    if (n !== product.stockActual) {
-      onSetStock(product.sku, n);
-      flash(`${product.sku} → ${formatNum(n)} ${product.unidad}`);
-    }
-    setEditing(false);
-  }
-
+  const movCount = product.movimientos?.length ?? 0;
+  const barPct = stockBarPct(product.stockActual, product.stockMinimo);
   return (
-    <tr className="group align-middle hover:bg-[var(--color-surface-muted)]/40">
+    <tr className="dense-row border-b border-[var(--color-line)] hover:bg-[var(--color-surface-muted)]">
       <td className="px-3 py-2.5">
-        <div className="min-w-0">
-          <p className="truncate font-medium text-[var(--color-ink-900)]">
-            {product.nombre}
-          </p>
-          <div className="mt-1 flex items-center gap-2">
-            <p className="mono text-[10.5px] uppercase tracking-[0.04em] text-[var(--color-ink-500)]">
-              {product.sku}
-            </p>
-            <div
-              className="stock-bar flex-1"
-              role="img"
-              aria-label={`Nivel de stock: ${formatNum(product.stockActual)} ${product.unidad} de ${formatNum(product.stockMinimo)} mínimos`}
-            >
-              <span
-                className="stock-bar-fill"
-                data-status={status}
-                style={{ width: `${stockBarPct(product.stockActual, product.stockMinimo)}%` }}
-              />
-            </div>
-          </div>
+        <a href={`/producto/${encodeURIComponent(product.sku)}`} className="mono text-[12px] text-[var(--color-ocean)] hover:underline">{product.sku}</a>
+      </td>
+      <td className="px-3 py-2.5">
+        <a href={`/producto/${encodeURIComponent(product.sku)}`} className="block max-w-[260px] truncate text-[13px] font-medium hover:text-[var(--color-ocean)]" title={product.nombre}>
+          {product.nombre}
+        </a>
+        <div className="mt-1 stock-bar" aria-hidden="true">
+          <span className="stock-bar-fill" data-status={status} style={{ width: `${barPct}%` }} />
         </div>
       </td>
-      <td className="hidden px-3 py-2.5 text-[var(--color-ink-700)] sm:table-cell">
-        {product.categoria}
-      </td>
-      <td className="px-3 py-2.5 text-right">
-        {editing ? (
-          <div className="inline-flex items-center gap-1">
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commit();
-                if (e.key === "Escape") {
-                  setDraft(String(product.stockActual));
-                  setEditing(false);
-                }
-              }}
-              aria-label={`Stock actual de ${product.nombre}`}
-              className="mono h-8 w-20 rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-2 text-right text-sm text-[var(--color-ink-900)] focus:border-[var(--color-focus)] focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={commit}
-              className="btn-base grid h-8 w-8 place-items-center bg-[var(--color-ocean)] text-white hover:bg-[var(--color-ocean-deep)]"
-              aria-label="Guardar stock"
-            >
-              <CheckCircle size={14} weight="bold" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDraft(String(product.stockActual));
-                setEditing(false);
-              }}
-              className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
-              aria-label="Cancelar edición"
-            >
-              <X size={14} weight="bold" aria-hidden="true" />
-            </button>
-          </div>
-        ) : (
-          <div className="inline-flex items-center justify-end gap-1">
-            <button
-              type="button"
-              onClick={() => onAdjust(product.sku, -1)}
-              disabled={product.stockActual <= 0}
-              aria-label={`Restar 1 ${product.unidad} a ${product.nombre}`}
-              className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="mono min-w-[3.5rem] rounded-md border border-transparent px-2 py-1 text-right font-semibold text-[var(--color-ink-900)] hover:border-[var(--color-line)]"
-              aria-label={`Editar stock de ${product.nombre}`}
-            >
-              {formatNum(product.stockActual)}
-              <span className="ml-1 font-sans text-[11px] font-normal text-[var(--color-ink-500)]">
-                {product.unidad}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onAdjust(product.sku, +1)}
-              aria-label={`Sumar 1 ${product.unidad} a ${product.nombre}`}
-              className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
-            >
-              +
-            </button>
-          </div>
-        )}
+      <td className="hidden px-3 py-2.5 text-[12px] text-[var(--color-ink-700)] sm:table-cell">{product.categoria}</td>
+      <td className="px-3 py-2.5">
+        <div className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onAdjust(product.sku, -1)}
+            disabled={product.stockActual <= 0}
+            className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] disabled:opacity-40"
+            aria-label={`Restar 1 ${product.unidad} a ${product.nombre}`}
+          >−</button>
+<button
+            type="button"
+            onClick={() => onRequestSetStock(product)}
+            className="mono min-w-[3.5rem] rounded-sm border border-transparent px-2 py-1 text-right text-[13px] font-medium hover:border-[var(--color-line)]"
+            title="Click para fijar stock exacto"
+            aria-label={`Fijar stock exacto de ${product.nombre}. Actual: ${formatNum(product.stockActual)} ${product.unidad}.`}
+          >
+            {formatNum(product.stockActual)}
+            <span className="ml-1 font-sans text-[11px] font-normal text-[var(--color-ink-500)]">{product.unidad}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onAdjust(product.sku, +1)}
+            className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)]"
+            aria-label={`Sumar 1 ${product.unidad} a ${product.nombre}`}
+          >+</button>
+        </div>
       </td>
       <td className="hidden px-3 py-2.5 text-right text-[var(--color-ink-700)] sm:table-cell">
-        <span className="mono">
-          {formatNum(product.stockMinimo)}
-          <span className="ml-1 font-sans text-[11px] text-[var(--color-ink-500)]">
-            {product.unidad}
-          </span>
-        </span>
+        <span className="mono">{formatNum(product.stockMinimo)}<span className="ml-1 font-sans text-[11px] text-[var(--color-ink-500)]">{product.unidad}</span></span>
       </td>
       <td className="hidden px-3 py-2.5 text-right text-[var(--color-ink-700)] sm:table-cell">
         <span className="mono">{formatArs(product.precioUnitario)}</span>
@@ -863,36 +762,26 @@ function ProductRow({
             onClick={() => onOpenHistory(product)}
             className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
             aria-label={`Ver historial de ${product.nombre}`}
-            title={
-              movCount > 0
-                ? `Ver historial (${formatNum(movCount)})`
-                : "Ver historial"
-            }
+            title={movCount > 0 ? `Ver historial (${formatNum(movCount)})` : "Ver historial"}
           >
             <span className="relative">
               <ClockCounterClockwise size={14} weight="bold" aria-hidden="true" />
               {movCount > 0 ? (
-                <span
-                  aria-hidden="true"
-                  className="mono absolute -right-2 -top-2 grid h-3.5 min-w-[14px] place-items-center rounded-full bg-[var(--color-ocean)] px-1 text-[9px] font-medium leading-none text-white"
-                >
+                <span aria-hidden="true" className="mono absolute -right-2 -top-2 grid h-3.5 min-w-[14px] place-items-center rounded-full bg-[var(--color-ocean)] px-1 text-[9px] font-medium leading-none text-white">
                   {movCount > 99 ? "99+" : movCount}
                 </span>
               ) : null}
             </span>
           </button>
-          <a
-            href={`/producto/editar?sku=${encodeURIComponent(product.sku)}`}
-            className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]"
-            aria-label={`Editar ${product.nombre}`}
-            title="Editar"
-          >
+          <a href={`/producto/editar?sku=${encodeURIComponent(product.sku)}`} className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-900)]" aria-label={`Editar ${product.nombre}`} title="Editar">
             <PencilSimple size={14} weight="bold" aria-hidden="true" />
           </a>
           <button
             type="button"
-            onClick={() => onDelete(product.sku)}
-            className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:border-[var(--color-status-bad)] hover:bg-[var(--color-status-bad)]/10 hover:text-[var(--color-status-bad)]"
+            onClick={() => {
+              if (window.confirm(`¿Eliminar ${product.nombre}? Esta acción no se puede deshacer.`)) onDelete(product.sku);
+            }}
+            className="btn-base grid h-8 w-8 place-items-center border border-[var(--color-line)] text-[var(--color-ink-700)] hover:border-[var(--color-status-bad)] hover:bg-[color-mix(in_oklch,var(--color-status-bad)_8%,transparent)] hover:text-[var(--color-status-bad)]"
             aria-label={`Eliminar ${product.nombre}`}
             title="Eliminar"
           >
@@ -904,46 +793,123 @@ function ProductRow({
   );
 }
 
-function StatusBadge({
-  status,
+function ModalShell({
+  title,
+  onClose,
+  children,
 }: {
-  status: "ok" | "bajo" | "critico";
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
 }) {
-  const palette = {
-    ok: {
-      fg: "var(--color-status-ok)",
-      bg: "color-mix(in oklch, var(--color-status-ok) 14%, transparent)",
-      label: statusLabel("ok"),
-      border: "color-mix(in oklch, var(--color-status-ok) 38%, transparent)",
-    },
-    bajo: {
-      fg: "var(--color-alert)",
-      bg: "color-mix(in oklch, var(--color-alert) 16%, transparent)",
-      label: statusLabel("bajo"),
-      border: "color-mix(in oklch, var(--color-alert) 45%, transparent)",
-    },
-    critico: {
-      fg: "var(--color-status-bad)",
-      bg: "color-mix(in oklch, var(--color-status-bad) 16%, transparent)",
-      label: statusLabel("critico"),
-      border: "color-mix(in oklch, var(--color-status-bad) 48%, transparent)",
-    },
-  } as const;
-  const p = palette[status];
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
-    <span
-      className="mono inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-[0.04em]"
-      style={{ color: p.fg, backgroundColor: p.bg, borderColor: p.border }}
-    >
-      <span
-        aria-hidden="true"
-        className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: p.fg }}
-      />
-      {p.label}
-    </span>
+    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-40 flex items-start justify-center bg-[oklch(0_0_0_/_0.45)] px-4 pt-[10vh] backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-2xl overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] shadow-2xl">
+        <header className="flex items-center justify-between border-b border-[var(--color-line)] px-4 py-2.5">
+          <h2 className="text-[13px] font-semibold">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="grid h-7 w-7 place-items-center rounded-md border border-[var(--color-line)] text-[var(--color-ink-500)] hover:bg-[var(--color-surface-muted)]">
+            <X size={12} weight="bold" aria-hidden="true" />
+          </button>
+        </header>
+        <div className="max-h-[70vh] overflow-auto p-4">{children}</div>
+      </div>
+    </div>
   );
 }
 
-// Suppress unused warning while keeping reference for future use
-void SEED_PRODUCTS;
+// Modal para fijar stock exacto (reemplaza window.prompt, que no es accesible).
+function SetStockForm({
+  product,
+  onCancel,
+  onApply,
+}: {
+  product: Product;
+  onCancel: () => void;
+  onApply: (value: number) => void;
+}) {
+  const [value, setValue] = useState<string>(String(product.stockActual));
+  const inputRef = useRef<HTMLInputElement>(null);
+  const error = useMemo(() => {
+    const n = Number(value);
+    if (value === "" || !Number.isFinite(n) || n < 0) return "Ingresá un número entero ≥ 0.";
+    if (!Number.isInteger(n)) return "El stock debe ser un entero.";
+    return null;
+  }, [value]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  }, []);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (error) return;
+    onApply(Number(value));
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3 text-[13px]">
+      <p className="text-[var(--color-ink-700)]">
+        Fijá el stock exacto de <strong>{product.nombre}</strong>{" "}
+        <span className="mono text-[12px] text-[var(--color-ink-500)]">({product.sku})</span>.
+        Esto registra un movimiento de tipo <em>ajuste</em>.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label htmlFor="set-stock-value" className="mb-1 block text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--color-ink-500)]">
+            Stock exacto
+          </label>
+          <input
+            ref={inputRef}
+            id="set-stock-value"
+            type="number"
+            min={0}
+            step={1}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={error ? "set-stock-error" : "set-stock-hint"}
+            className="mono h-10 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 text-[13px] focus:border-[var(--color-focus)] focus:outline-none"
+          />
+          {error ? (
+            <p id="set-stock-error" role="alert" className="mt-1 text-[11px] text-[var(--color-status-bad)]">
+              {error}
+            </p>
+          ) : (
+            <p id="set-stock-hint" className="mt-1 text-[11px] text-[var(--color-ink-500)]">
+              Unidad: <span className="mono">{product.unidad}</span> · Actual: {product.stockActual}
+            </p>
+          )}
+        </div>
+        <div className="rounded-md border border-[var(--color-line)] bg-[var(--color-surface-muted)] p-3 text-[11.5px] text-[var(--color-ink-500)]">
+          <p className="mb-1 font-medium text-[var(--color-ink-700)]">Resumen</p>
+          <p>Cambio neto: <span className="mono">{Number(value) - product.stockActual} {product.unidad}</span></p>
+          <p>Stock mínimo: <span className="mono">{product.stockMinimo} {product.unidad}</span></p>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 border-t border-[var(--color-line)] pt-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="btn-base h-9 border border-[var(--color-line)] bg-[var(--color-surface)] px-3 text-[12.5px] hover:bg-[var(--color-surface-muted)]"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={Boolean(error)}
+          className="btn-base h-9 bg-[var(--color-ocean)] px-3 text-[12.5px] font-medium text-white hover:bg-[var(--color-ocean-deep)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Aplicar
+        </button>
+      </div>
+    </form>
+  );
+}

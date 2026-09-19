@@ -17,21 +17,30 @@ Una distribuidora chica necesita un panel simple para:
 
 Las planillas se desactualizan, los sistemas ERP son carísimos para el volumen de estaPyME, y un sistema "de papel" no permite filtrar ni ordenar. El panel resuelve lo justo: ver, alertar, editar.
 
-**Cliente ficticio**: Distribuidora El Faro (zona sur GBA, rubro bebidas y snacks; en el código figura como *Distribuidora del Sur* por consistencia con el resto de la cartera).
+**Cliente ficticio**: Distribuidora El Faro (zona sur GBA, rubro bebidas y snacks).
 
 ---
 
 ## Solución
 
-Una SPA-lite construida sobre **Astro 7 + React 19 + Tailwind v4**, con tres rutas estáticas:
+Una SPA-lite construida sobre **Astro 7 + React 19 + Tailwind v4**, con diez rutas estáticas y un cliente de búsqueda global con atajo `⌘K` / `Ctrl+K`.
+
+### Rutas
 
 | Ruta | Qué hace |
 |---|---|
-| `/` | Panel principal: KPIs, filtros (categoría / estado / búsqueda) y tabla de productos con acciones inline (`+` / `−` en stock, edición, eliminar). |
-| `/producto/nuevo` | Formulario de alta con validación completa y sugerencia automática de SKU. |
+| `/` | Panel principal: KPIs, filtros, alertas, tabla de productos con acciones inline (`+` / `−` / fijar / eliminar / ver historial). |
+| `/producto/nuevo` | Formulario de alta con validación completa, sugerencia automática de SKU y categorías dinámicas. |
 | `/producto/editar` | Mismo formulario, modo edición. Carga el producto desde `localStorage` leyendo `?sku=` de la URL. |
+| `/producto/[id]` | Detalle de producto con historial de movimientos, gráfico de stock y acciones rápidas. |
+| `/categorias` | Listado y métricas por categoría (productos, stock total, alertas, valor). |
+| `/movimientos` | Bitácora cronológica de movimientos con filtros por producto, operario y tipo. |
+| `/reportes` | Tres reportes exportables a PDF (stock crítico, valorización, proyección de rotación). |
+| `/proveedores` | Listado de proveedores con métricas, búsqueda y enlace a la orden de compra. |
+| `/proveedores/nueva` | Formulario de alta de orden de compra con líneas (SKU + cantidad + precio). |
+| `/auditoria` | Log inmutable de operaciones relevantes, filtrable por operario y acción. |
 
-Todo el estado vive en `localStorage` bajo la clave `delsur.inventario.v1`, con un esquema versionado (`{ version, products[] }`) para futuras migraciones. Hay un botón **"Restablecer"** que vuelve al catálogo seed.
+Todo el estado vive en `localStorage` bajo la clave `elfaro.inventario.v3`, con esquema versionado (`{ version, products, proveedores, operarios, ordenes, audit, activeOperarioId }`) y migración automática desde v1 y v2. Hay un botón **"Restablecer"** que vuelve al catálogo seed.
 
 ### Modelo de alertas (configurable)
 
@@ -40,22 +49,22 @@ El estado de cada producto se deriva en `src/lib/inventory.ts`, función `status
 | Estado | Condición | Color |
 |---|---|---|
 | `ok` | `stockMinimo === 0` o `stockActual > stockMinimo` | Verde (`--color-status-ok`) |
-| `bajo` | `stockActual ≤ stockMinimo` | Ámbar (`--color-status-warn`) |
-| `critico` | `stockActual ≤ ⌊stockMinimo / 2⌋` | Rojo (`--color-status-bad`) |
+| `bajo` | `stockActual ≤ stockMinimo` (y > 0) | Ámbar (`--color-alert`) |
+| `critico` | `stockActual === 0` o `stockActual ≤ ⌊stockMinimo / 2⌋` | Rojo (`--color-status-bad`) |
 
-Los colores son **CSS variables en `src/styles/global.css`** dentro del bloque `@theme` — se pueden ajustar sin tocar componentes. El umbral es **por producto** (campo `stockMinimo`), así que cada SKU define cuándo le suena la alarma.
+Adicionalmente, `AlertsBanner` detecta un cuarto tier **`sobrestock`** (`stockActual > stockMinimo × 5`, multiplicador configurable) para señalar productos con exceso de depósito. Los colores son **CSS variables en `src/styles/global.css`** dentro del bloque `@theme` — se pueden ajustar sin tocar componentes. El umbral es **por producto** (campo `stockMinimo`).
 
 ### Criterios de aceptación cumplidos
 
 - [x] **T03.1** La tabla del dashboard muestra SKU, nombre, categoría, stock actual, stock mínimo, **precio**, estado visual y acciones.
-- [x] **T03.2** La alerta de bajo stock se dispara cuando `stockActual ≤ stockMinimo`, con color configurable vía CSS variables (umbrales documentados en `inventory.ts`).
-- [x] **T03.3** El alta valida nombre (≥3 chars), SKU único (regex `[A-Z0-9-]{3,20}` + colisión contra catálogo), categoría, stock, precio y stock mínimo.
-- [x] **T03.4** La edición carga los datos existentes desde `localStorage` leyendo `?sku=` y guarda con la misma validación.
+- [x] **T03.2** Alerta de bajo stock cuando `stockActual ≤ stockMinimo`, con color configurable vía CSS variables (umbrales documentados en `inventory.ts`). Tier adicional `sobrestock` con multiplicador 5×.
+- [x] **T03.3** Alta valida nombre (≥3 chars), SKU único (regex `[A-Z0-9-]{3,20}` + colisión contra catálogo), categoría libre (texto o selector), stock, precio y stock mínimo.
+- [x] **T03.4** Edición carga datos desde `localStorage` leyendo `?sku=` y guarda con la misma validación.
 - [x] **T03.5** Toda mutación persiste inmediatamente vía `writeState()` y sobrevive a refresh.
-- [x] **T03.6** Accesibilidad: `<label htmlFor>` real, `aria-invalid` en cada input, `:focus-visible` con outline 2 px, skip-link al main, `role="alert"` en errores, `aria-live="polite"` en toasts.
+- [x] **T03.6** Accesibilidad: `<label htmlFor>` real, `aria-invalid` + `aria-describedby` en cada input con error, `:focus-visible` con outline 2 px, skip-link al main, `role="alert"` en errores, `aria-live="polite"` en toasts.
 - [x] **T03.7** `pnpm build` y `pnpm astro check` en 0 errores.
-- [x] **T03.8** Este README sigue la estructura Problema / Solución / Stack / Cómo correrlo / Disclaimer.
-- [x] **T03.9** El proyecto es **completamente estático** (output por defecto). Las rutas `/producto/nuevo` y `/producto/editar` no son dinámicas — son archivos estáticos; la edición lee `?sku=` en el cliente. **No hace falta adapter SSR**; `astro.config.mjs` no declara `output: 'server'/'hybrid'` ni `@astrojs/node`. Ver *Decisiones técnicas*.
+- [x] **T03.8** Este README sigue la estructura Problema / Solución / Stack / Cómo correrlo / Decisiones técnicas / Disclaimer.
+- [x] **T03.9** El proyecto es **completamente estático** (output por defecto). No hace falta adapter SSR; `astro.config.mjs` no declara `output: 'server'/'hybrid'` ni `@astrojs/node`.
 
 ---
 
@@ -67,12 +76,12 @@ Los colores son **CSS variables en `src/styles/global.css`** dentro del bloque `
 | UI islands | React | 19.3.x |
 | Estilos | Tailwind CSS v4 vía `@tailwindcss/vite` (sin `tailwind.config.js`) | 4.3.x |
 | Iconos | `@phosphor-icons/react` | 2.1.x |
-| Tipografías | `@fontsource-variable/geist` + `geist-mono` | 5.3.x |
+| Tipografías | IBM Plex Sans + IBM Plex Mono (Bunny Fonts CDN, sin deps npm) | — |
 | Lenguaje | TypeScript estricto (`astro/tsconfigs/strict`) | 5.9.x |
 | Package manager | pnpm (exclusivo, lockfile versionado) | 11.x |
-| Persistencia | `window.localStorage` (sin backend) | — |
+| Persistencia | `window.localStorage` con esquema versionado (v3) | — |
 
-**Salida**: sitio estático. Tres páginas se prerendizan a HTML en `pnpm build` (`dist/index.html`, `dist/producto/nuevo/index.html`, `dist/producto/editar/index.html`). El JS de las islas se bundle por separado en `dist/_astro/`.
+**Salida**: sitio estático. Diez páginas se prerendizan a HTML en `pnpm build` (`dist/index.html`, `dist/categorias/index.html`, `dist/movimientos/index.html`, `dist/reportes/index.html`, `dist/proveedores/index.html`, `dist/proveedores/nueva/index.html`, `dist/auditoria/index.html`, `dist/producto/nuevo/index.html`, `dist/producto/editar/index.html`, `dist/producto/<sku>/index.html`). El JS de las islas se bundle por separado en `dist/_astro/`.
 
 ---
 
@@ -97,7 +106,7 @@ pnpm preview
 
 ### Primer uso
 
-Al abrir la app por primera vez, el catálogo seed (18 productos demo de la categoría almacén: arroz, fideos, aceite, legumbres, conservas, condimentos) se escribe automáticamente en `localStorage`. Para volver al estado inicial en cualquier momento: botón **"Restablecer"** en el panel principal.
+Al abrir la app por primera vez, el catálogo seed (32 SKUs de 10 categorías — arroz, fideos, aceite, legumbres, conservas, condimentos, snacks, bebidas, lácteos, limpieza — más 8 proveedores y 4 operarios) se escribe automáticamente en `localStorage` bajo la clave `elfaro.inventario.v3`. Para volver al estado inicial en cualquier momento: botón **"Restablecer"** en el panel principal.
 
 Para empezar de cero en el navegador: DevTools → Storage → Clear site data, o `localStorage.clear()` en la consola.
 
@@ -106,34 +115,67 @@ Para empezar de cero en el navegador: DevTools → Storage → Clear site data, 
 ```text
 src/
 ├── components/
-│   ├── Dashboard.tsx       # Isla principal: KPIs + filtros + tabla
-│   ├── Header.astro         # Shell estático con SearchBox + ThemeToggle
-│   ├── ProductForm.tsx      # Isla compartida por alta y edición
-│   ├── SearchBox.tsx        # Isla de búsqueda (⌘K)
-│   └── ThemeToggle.tsx      # Isla light/dark
+│   ├── Dashboard.tsx           # Isla principal: KPIs + filtros + tabla + acciones
+│   ├── Header.astro            # Shell estático con GlobalSearch + ThemeToggle + OperarioSelector
+│   ├── ProductForm.tsx         # Isla compartida por alta y edición
+│   ├── ProductDetail.tsx       # Detalle de producto + historial + gráfico
+│   ├── AlertsBanner.tsx        # Alertas activo / bajo / crítico / sobrestock
+│   ├── MovementHistory.tsx     # Drawer de movimientos con form de alta inline
+│   ├── MovementsView.tsx       # Bitácora global de movimientos
+│   ├── ReportsView.tsx         # Reportes + export PDF (jspdf)
+│   ├── SuppliersView.tsx       # Listado de proveedores con métricas
+│   ├── NewPurchaseOrder.tsx    # Alta de orden de compra
+│   ├── CategoriesView.tsx      # Métricas por categoría
+│   ├── AuditView.tsx           # Log de auditoría con iconos + colores
+│   ├── MovementsMiniChart.tsx  # Barras entradas/salidas (30 días)
+│   ├── StockChart.tsx          # Línea de stock + barras por mes
+│   ├── StatusBadge.tsx         # Badge compartido (ok/bajo/crítico) con icono
+│   ├── CSVImporter.tsx         # Importador CSV vanilla (RFC 4180 lite)
+│   ├── GlobalSearch.tsx        # Paleta ⌘K de búsqueda
+│   ├── SearchBox.tsx           # Input de búsqueda del dashboard
+│   ├── OperarioSelector.tsx    # Switcher de operario activo
+│   ├── OperarioContext.tsx     # Provider de operario activo
+│   ├── DataTable.tsx           # Tabla genérica con sort + paginación
+│   └── ThemeToggle.tsx         # Switch light/dark
 ├── data/
-│   └── seed.ts              # Catálogo inicial + tipos (Product, Category, StockStatus)
+│   └── seed.ts                 # Catálogo inicial + tipos (Product, AuditEntry, etc.)
 ├── layouts/
-│   └── Layout.astro         # HTML shell, theme bootstrap inline, skip link
+│   └── Layout.astro            # HTML shell + SEO + theme bootstrap inline + skip-link
 ├── lib/
-│   ├── inventory.ts         # statusOf(), deriveKpis(), formatters, SKU suggester
-│   └── storage.ts           # CRUD sobre localStorage (read/write/upsert/delete)
+│   ├── inventory.ts            # statusOf(), deriveKpis(), formatters, SKU suggester
+│   ├── storage.ts              # CRUD sobre localStorage (read/write/upsert/delete + migrate)
+│   ├── categories.ts           # SEED_CATEGORIES + deriveCategories()
+│   └── pdf.ts                  # Wrappers de jspdf-autotable para reportes PDF
 ├── pages/
-│   ├── index.astro          # / — Panel principal
+│   ├── index.astro             # /  Panel principal
+│   ├── categorias.astro        # /categorias
+│   ├── movimientos.astro       # /movimientos
+│   ├── reportes.astro          # /reportes
+│   ├── proveedores.astro       # /proveedores
+│   ├── proveedores/
+│   │   └── nueva.astro         # /proveedores/nueva
+│   ├── auditoria.astro         # /auditoria
 │   └── producto/
-│       ├── nuevo.astro      # /producto/nuevo
-│       └── editar.astro     # /producto/editar?sku=XXX
+│       ├── nuevo.astro         # /producto/nuevo
+│       ├── editar.astro        # /producto/editar?sku=XXX
+│       └── [id].astro          # /producto/<sku>
 └── styles/
-    └── global.css           # @theme tokens + dark mode override
+    └── global.css              # @theme tokens + dark mode override
 ```
 
 ---
 
 ## Decisiones técnicas
 
-- **Static over SSR.** Astro 7 sale en modo `static` por defecto. Las rutas `producto/nuevo` y `producto/editar` **no son dinámicas** (`[sku].astro`) — son archivos estáticos, y la página de edición lee `?sku=` en el cliente. Esto evita el adapter SSR y mantiene `dist/` 100% HTML estático servible desde cualquier CDN. El brief inicial sugería `output: 'server'/'hybrid'`, pero ese approach habría sido innecesario: la fuente de verdad es `localStorage` y no se puede renderizar por SKU en build time.
+- **Static over SSR.** Astro 7 sale en modo `static` por defecto. La ruta `producto/[id]` usa `getStaticPaths()` con todos los SKUs del seed (las altas del usuario solo existen en su `localStorage`); la edición y el detalle leen `?sku=` en el cliente. Esto evita el adapter SSR y mantiene `dist/` 100% HTML estático servible desde cualquier CDN. El brief inicial sugería `output: 'server'/'hybrid'`, pero ese approach habría sido innecesario: la fuente de verdad es `localStorage` y no se puede renderizar por SKU en build time.
+- **React islands, no Preact.** React 19 se justifica porque necesitamos `<details>`, `<dialog>` y portales de modal sin tener que pelear con las diferencias de typings Preact. La diferencia de bundle (≈10 KB gzipped) no justifica la fricción para un proyecto de este tamaño, y Astro ya hace tree-shaking agresivo de las islas que no se usan.
+- **localStorage con schema versionado.** Cada bump de versión (`v1 → v2 → v3`) corre una `migrate()` que toma el payload anterior y lo adapta al shape actual. La nueva clave `elfaro.inventario.v3` se introdujo al renombrar el cliente (de "Distribuidora del Sur" a "Distribuidora El Faro") — la migración v2→v3 es un no-op de shape, pero el bump permite invalidar automáticamente la sesión del usuario sin necesidad de banner de "actualizá la página".
+- **Dual theme.** Light + dark soportados vía CSS variables en `src/styles/global.css`. El bootstrap es **inline en el `<head>`** para evitar el flash de tema claro en clientes dark. La elección del usuario persiste en `localStorage["elfaro.theme"]` y se sincroniza con `prefers-color-scheme` si no hay elección guardada.
+- **Audit counter derivado del array.** El ID de cada entrada de auditoría se calcula desde el máximo numérico presente en el array, en lugar de un contador módulo-level. Esto sobrevive al refresh y a múltiples pestañas sin colisiones, y la semilla `1000` preserva compatibilidad con el contador anterior.
+- **Categorías dinámicas.** El campo `Product.categoria` es `string` (no un literal union) para permitir que el usuario cree y elimine categorías. El set inicial vive en `src/lib/categories.ts` (`SEED_CATEGORIES`); `deriveCategories()` respeta ese orden y agrega las dinámicas al final en orden alfabético.
+- **CSV parser vanilla.** Sin dependencias para CSV — el parser es RFC 4180 lite (≈100 líneas en `CSVImporter.tsx`) y maneja quoted fields, comillas escapadas y saltos de línea embebidos. `.xlsx` se rechaza explícitamente.
 - **Una sola isla para alta + edición.** `ProductForm` recibe `mode="create" | "edit"` y resuelve el SKU desde prop o desde `?sku=`. Reduce duplicación y mantiene idéntica la UX entre ambos flujos.
-- **`client:only="react"` en la edición.** Como la página es estática y el SKU se conoce recién en el cliente, usamos `client:only` para evitar el flash de un form vacío. La página nueva usa `client:load` (el form sí se puede mostrar de entrada con el estado vacío inicial).
+- **`client:only="react"` en la edición y el detalle.** Como la página es estática y el SKU se conoce recién en el cliente, usamos `client:only` para evitar el flash de un form vacío.
 - **Umbral por producto, no global.** Cada SKU define su propio `stockMinimo`. Refleja la realidad: una caja de atún necesita 45 para reponer, un kilo de arroz necesita 60. Un umbral global sería una mentira para una distribuidora real.
 - **Estado `critico` cuando `stockActual ≤ ⌊stockMinimo / 2⌋`.** Distingue "te queda poco" de "te queda casi nada" sin agregar UI nueva — el mismo badge cambia de color.
 - **Persistencia inmediata.** Cada mutación llama `writeState(products)` en un `useEffect`, así no hay botón "guardar" global. El usuario edita y la próxima refresh ya ve el cambio.
